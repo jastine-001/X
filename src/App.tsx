@@ -37,7 +37,7 @@ interface AIMode {
 const AI_MODES: AIMode[] = [
   {
     id: 'beauty',
-    name: 'Beauty & Style',
+    name: 'Welcome XLYGER AI',
     icon: <Sparkles className="w-5 h-5" />,
     color: '#EC4899',
     textColor: 'text-pink-400',
