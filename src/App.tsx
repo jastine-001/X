@@ -321,7 +321,7 @@ function App() {
         <div className="p-6 border-b border-gray-700">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <MessageSquare className="w-5 h-5 text-white" />
+              <span className="font-bold text-lg text-white">XL</span>
             </div>
             <div>
               <div className="text-sm text-gray-400">XLYGER</div>
