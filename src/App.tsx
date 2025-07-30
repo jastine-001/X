@@ -480,8 +480,18 @@ function App() {
                       {message.type === 'user' ? (
                         <span className="text-xs lg:text-sm font-bold">U</span>
                       ) : (
-                        <span className="text-xs lg:text-sm font-bold">A</span>
+                        <img 
+                          src="/xlyger-logo.svg" 
+                          alt="Xlyger AI" 
+                          className="w-4 h-4 lg:w-6 lg:h-6 rounded-full object-cover"
+                          onError={(e) => {
+                            // Fallback to text if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling!.style.display = 'inline';
+                          }}
+                        />
                       )}
+                      <span className="text-xs lg:text-sm font-bold hidden">A</span>
                     </div>
                     <div className={`flex-1 ${message.type === 'user' ? 'text-right' : ''}`}>
                       <div className={`inline-block p-3 lg:p-4 rounded-lg ${
@@ -506,7 +516,17 @@ function App() {
             <div className="flex justify-start">
               <div className="flex space-x-2 lg:space-x-3 max-w-[85%] lg:max-w-3xl">
                 <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${currentMode.bgColor}`}>
-                  <span className="text-xs lg:text-sm font-bold">A</span>
+                  <img 
+                    src="/xlyger-logo.svg" 
+                    alt="Xlyger AI" 
+                    className="w-4 h-4 lg:w-6 lg:h-6 rounded-full object-cover"
+                    onError={(e) => {
+                      // Fallback to text if image fails to load
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling!.style.display = 'inline';
+                    }}
+                  />
+                  <span className="text-xs lg:text-sm font-bold hidden">A</span>
                 </div>
                 <div className="flex-1">
                   <div className={`inline-block p-3 lg:p-4 rounded-lg bg-gray-800 border border-gray-700 ${currentMode.textColor}`}>
