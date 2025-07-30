@@ -11,7 +11,9 @@ import {
   Image, 
   Mic, 
   Video, 
-  Circle 
+  Circle,
+  Menu,
+  X
 } from 'lucide-react';
 
 interface Message {
@@ -73,6 +75,7 @@ function App() {
   const [inputMessage, setInputMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -314,32 +317,55 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white">
+    <div className="flex h-screen bg-gray-900 text-white relative">
+      {/* Mobile Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
+      <div className={`
+        fixed lg:relative inset-y-0 left-0 z-50 w-80 bg-gray-800 border-r border-gray-700 flex flex-col transform transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
         {/* Header */}
-        <div className="p-6 border-b border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="font-bold text-lg text-white">XL</span>
-            </div>
-            <div>
-              <div className="text-sm text-gray-400">XLYGER</div>
-              <div className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
-                XLYGER AI
+        <div className="p-4 lg:p-6 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="font-bold text-lg text-white">XL</span>
+              </div>
+              <div>
+                <div className="text-sm text-gray-400">XLYGER</div>
+                <div className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+                  XLYGER AI
+                </div>
               </div>
             </div>
+            {/* Close button for mobile */}
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="lg:hidden p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
         {/* Mode Selection */}
-        <div className="p-6">
+        <div className="p-4 lg:p-6">
           <h3 className="text-gray-400 text-sm font-medium mb-4">Select Mode</h3>
           <div className="space-y-2">
             {AI_MODES.map((mode) => (
               <button
                 key={mode.id}
-                onClick={() => handleModeChange(mode)}
+                onClick={() => {
+                  handleModeChange(mode);
+                  setIsSidebarOpen(false); // Close sidebar on mobile after selection
+                }}
                 className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 hover:bg-gray-700 ${
                   currentMode.id === mode.id 
                     ? `${mode.bgColor} text-white shadow-lg transform scale-105` 
@@ -347,17 +373,20 @@ function App() {
                 }`}
               >
                 {mode.icon}
-                <span className="font-medium">{mode.name}</span>
+                <span className="font-medium text-sm lg:text-base">{mode.name}</span>
               </button>
             ))}
           </div>
         </div>
 
         {/* New Chat Button */}
-        <div className="p-6">
+        <div className="p-4 lg:p-6">
           <button
-            onClick={handleNewChat}
-            className="w-full flex items-center justify-center space-x-2 p-3 bg-pink-500 hover:bg-pink-600 rounded-lg transition-colors duration-200 font-medium"
+            onClick={() => {
+              handleNewChat();
+              setIsSidebarOpen(false); // Close sidebar on mobile after action
+            }}
+            className="w-full flex items-center justify-center space-x-2 p-3 bg-pink-500 hover:bg-pink-600 rounded-lg transition-colors duration-200 font-medium text-sm lg:text-base"
           >
             <Plus className="w-5 h-5" />
             <span>NEW CHAT</span>
@@ -365,16 +394,34 @@ function App() {
         </div>
 
         {/* Quick Prompts */}
-        <div className="p-6 mt-auto">
+        <div className="p-4 lg:p-6 mt-auto">
           <h3 className="text-gray-400 text-sm font-medium mb-4">Quick Prompts</h3>
           <div className="space-y-2">
-            <button className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors">
+            <button 
+              onClick={() => {
+                setInputMessage("Help me get started");
+                setIsSidebarOpen(false);
+              }}
+              className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
+            >
               "Help me get started"
             </button>
-            <button className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors">
+            <button 
+              onClick={() => {
+                setInputMessage("What can you do?");
+                setIsSidebarOpen(false);
+              }}
+              className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
+            >
               "What can you do?"
             </button>
-            <button className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors">
+            <button 
+              onClick={() => {
+                setInputMessage("Show me examples");
+                setIsSidebarOpen(false);
+              }}
+              className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
+            >
               "Show me examples"
             </button>
           </div>
@@ -382,19 +429,38 @@ function App() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center space-x-2">
+            <div className={`w-6 h-6 ${currentMode.bgColor} rounded-full flex items-center justify-center`}>
+              {React.cloneElement(currentMode.icon as React.ReactElement, { className: "w-3 h-3" })}
+            </div>
+            <span className={`font-medium text-sm ${currentMode.textColor}`}>
+              {currentMode.name}
+            </span>
+          </div>
+          <div className="w-10"></div> {/* Spacer for centering */}
+        </div>
+
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-3 lg:p-6 space-y-4 lg:space-y-6 scrollbar-thin">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className={`w-16 h-16 ${currentMode.bgColor} rounded-full flex items-center justify-center mx-auto mb-4`}>
-                  {currentMode.icon}
+              <div className="text-center px-4">
+                <div className={`w-12 h-12 lg:w-16 lg:h-16 ${currentMode.bgColor} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                  {React.cloneElement(currentMode.icon as React.ReactElement, { className: "w-6 h-6 lg:w-8 lg:h-8" })}
                 </div>
-                <h2 className={`text-2xl font-bold ${currentMode.textColor} mb-2`}>
+                <h2 className={`text-xl lg:text-2xl font-bold ${currentMode.textColor} mb-2`}>
                   {currentMode.name}
                 </h2>
-                <p className="text-gray-400">How can I help you today?</p>
+                <p className="text-gray-400 text-sm lg:text-base">How can I help you today?</p>
               </div>
             </div>
           ) : (
@@ -405,25 +471,35 @@ function App() {
                   key={message.id}
                   className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`flex space-x-3 max-w-3xl ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  <div className={`flex space-x-2 lg:space-x-3 max-w-[85%] lg:max-w-3xl ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                    <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                       message.type === 'user' 
                         ? 'bg-gray-600' 
                         : `${messageMode.bgColor}`
                     }`}>
                       {message.type === 'user' ? (
-                        <span className="text-sm font-bold">U</span>
+                        <span className="text-xs lg:text-sm font-bold">U</span>
                       ) : (
-                        <span className="text-sm font-bold">A</span>
+                        <img 
+                          src="/xlyger-logo.svg" 
+                          alt="Xlyger AI" 
+                          className="w-4 h-4 lg:w-6 lg:h-6 rounded-full object-cover"
+                          onError={(e) => {
+                            // Fallback to text if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling!.style.display = 'inline';
+                          }}
+                        />
                       )}
+                      <span className="text-xs lg:text-sm font-bold hidden">A</span>
                     </div>
                     <div className={`flex-1 ${message.type === 'user' ? 'text-right' : ''}`}>
-                      <div className={`inline-block p-4 rounded-lg ${
+                      <div className={`inline-block p-3 lg:p-4 rounded-lg ${
                         message.type === 'user'
                           ? 'bg-gray-700 text-white'
                           : `bg-gray-800 border border-gray-700 ${messageMode.textColor}`
                       }`}>
-                        <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                        <p className="leading-relaxed whitespace-pre-wrap text-sm lg:text-base">{message.content}</p>
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
                         {message.timestamp.toLocaleTimeString()}
@@ -438,12 +514,22 @@ function App() {
           {/* Typing Indicator */}
           {isTyping && (
             <div className="flex justify-start">
-              <div className="flex space-x-3 max-w-3xl">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${currentMode.bgColor}`}>
-                  <span className="text-sm font-bold">A</span>
+              <div className="flex space-x-2 lg:space-x-3 max-w-[85%] lg:max-w-3xl">
+                <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${currentMode.bgColor}`}>
+                  <img 
+                    src="/xlyger-logo.svg" 
+                    alt="Xlyger AI" 
+                    className="w-4 h-4 lg:w-6 lg:h-6 rounded-full object-cover"
+                    onError={(e) => {
+                      // Fallback to text if image fails to load
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling!.style.display = 'inline';
+                    }}
+                  />
+                  <span className="text-xs lg:text-sm font-bold hidden">A</span>
                 </div>
                 <div className="flex-1">
-                  <div className={`inline-block p-4 rounded-lg bg-gray-800 border border-gray-700 ${currentMode.textColor}`}>
+                  <div className={`inline-block p-3 lg:p-4 rounded-lg bg-gray-800 border border-gray-700 ${currentMode.textColor}`}>
                     <div className="flex space-x-1">
                       <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
@@ -459,8 +545,9 @@ function App() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-gray-700 p-6">
-          <div className="flex items-center space-x-4 mb-4">
+        <div className="border-t border-gray-700 p-3 lg:p-6 bg-gray-900 safe-area-inset-bottom">
+          {/* Media buttons - horizontal scroll on mobile */}
+          <div className="flex items-center space-x-2 lg:space-x-4 mb-3 lg:mb-4 overflow-x-auto pb-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -471,38 +558,39 @@ function App() {
             
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 lg:p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
               title="Upload file"
             >
-              <Image className="w-5 h-5" />
+              <Image className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
             
             <button
               onClick={isRecording ? stopRecording : startRecording}
-              className={`p-2 hover:bg-gray-800 rounded-lg transition-colors ${
+              className={`p-2 lg:p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0 ${
                 isRecording ? 'text-red-400 animate-pulse' : 'text-pink-400 hover:text-pink-300'
               }`}
               title={isRecording ? 'Stop recording' : 'Record voice'}
             >
-              <Mic className="w-5 h-5" />
+              <Mic className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
             
             <button
-              className="p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 lg:p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
               title="Video call"
             >
-              <Video className="w-5 h-5" />
+              <Video className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
             
             <button
-              className="p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 lg:p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
               title="Voice note"
             >
-              <Circle className="w-5 h-5" />
+              <Circle className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
           </div>
 
-          <div className="flex items-center space-x-4">
+          {/* Message input */}
+          <div className="flex items-center space-x-2 lg:space-x-4">
             <div className="flex-1 relative">
               <input
                 type="text"
@@ -510,19 +598,19 @@ function App() {
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                 placeholder="Send a message..."
-                className="w-full p-4 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                className="w-full p-3 lg:p-4 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 text-sm lg:text-base"
               />
             </div>
             <button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim() || isTyping}
-              className="p-4 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+              className="p-3 lg:p-4 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors flex-shrink-0"
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
           </div>
 
-          <div className="text-center text-xs text-gray-500 mt-4">
+          <div className="text-center text-xs text-gray-500 mt-3 lg:mt-4">
             Free Research Preview. XLYGER AI may produce inaccurate information.
           </div>
         </div>
