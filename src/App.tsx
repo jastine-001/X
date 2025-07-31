@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   Copy,
-  Check
+  Check,
+  Search
 } from 'lucide-react';
 
 interface Message {
@@ -43,9 +44,9 @@ const AI_MODES: AIMode[] = [
     id: 'general',
     name: 'General AI',
     icon: <Brain className="w-5 h-5" />,
-    color: '#3B82F6',
-    textColor: 'text-blue-400',
-    bgColor: 'bg-blue-500'
+    color: '#EC4899',
+    textColor: 'text-pink-400',
+    bgColor: 'bg-pink-500'
   },
   {
     id: 'writing',
@@ -91,6 +92,7 @@ function App() {
   const [inputMessage, setInputMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [typingText, setTypingText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [dailyUsage, setDailyUsage] = useState<DailyUsage>(() => {
     const today = new Date().toDateString();
@@ -201,6 +203,37 @@ function App() {
     return formatted;
   };
 
+  // Simulate websocket-style typing effect
+  const simulateTyping = (text: string, callback: (finalText: string) => void) => {
+    setTypingText('');
+    setIsTyping(true);
+    
+    let currentIndex = 0;
+    const typingSpeed = 30; // milliseconds per character
+    
+    const typeNextChar = () => {
+      if (currentIndex < text.length) {
+        setTypingText(text.substring(0, currentIndex + 1));
+        currentIndex++;
+        setTimeout(typeNextChar, typingSpeed);
+      } else {
+        setIsTyping(false);
+        setTypingText('');
+        callback(text);
+      }
+    };
+    
+    typeNextChar();
+  };
+
+  // Handle Google search
+  const handleGoogleSearch = () => {
+    if (inputMessage.trim()) {
+      const searchQuery = encodeURIComponent(inputMessage.trim());
+      window.open(`https://www.google.com/search?q=${searchQuery}`, '_blank');
+    }
+  };
+
   const handleModeChange = (mode: AIMode) => {
     if (mode.id !== currentMode.id) {
       setCurrentMode(mode);
@@ -233,7 +266,6 @@ function App() {
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
-    setIsTyping(true);
 
     // Generate real AI response
     const generateResponse = async () => {
@@ -253,15 +285,18 @@ function App() {
           }));
         }
         
-        const aiResponse: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'ai',
-          content: aiResponseText,
-          timestamp: new Date(),
-          mode: currentMode.id,
-          images: images.length > 0 ? images : undefined
-        };
-        setMessages(prev => [...prev, aiResponse]);
+        // Use typing simulation
+        simulateTyping(aiResponseText, (finalText) => {
+          const aiResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'ai',
+            content: finalText,
+            timestamp: new Date(),
+            mode: currentMode.id,
+            images: images.length > 0 ? images : undefined
+          };
+          setMessages(prev => [...prev, aiResponse]);
+        });
       } catch (error) {
         const errorResponse: Message = {
           id: (Date.now() + 1).toString(),
@@ -271,8 +306,6 @@ function App() {
           mode: currentMode.id
         };
         setMessages(prev => [...prev, errorResponse]);
-      } finally {
-        setIsTyping(false);
       }
     };
 
@@ -312,7 +345,6 @@ function App() {
       };
       setMessages(prev => [...prev, fileMessage]);
 
-      setIsTyping(true);
 
       // Generate AI response to file
       const analyzeFile = async () => {
@@ -327,14 +359,17 @@ function App() {
             aiResponseText = `I can see you've uploaded "${file.name}". While I can't directly process this file type, I'd be happy to help you with any questions about it or assist you in the current ${currentMode.name} mode.`;
           }
           
-          const aiResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'ai',
-            content: aiResponseText,
-            timestamp: new Date(),
-            mode: currentMode.id
-          };
-          setMessages(prev => [...prev, aiResponse]);
+          // Use typing simulation
+          simulateTyping(aiResponseText, (finalText) => {
+            const aiResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'ai',
+              content: finalText,
+              timestamp: new Date(),
+              mode: currentMode.id
+            };
+            setMessages(prev => [...prev, aiResponse]);
+          });
         } catch (error) {
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
@@ -344,8 +379,6 @@ function App() {
             mode: currentMode.id
           };
           setMessages(prev => [...prev, errorResponse]);
-        } finally {
-          setIsTyping(false);
         }
       };
 
@@ -371,7 +404,6 @@ function App() {
       };
       setMessages(prev => [...prev, voiceMessage]);
 
-      setIsTyping(true);
 
       // Generate AI response to voice message
       const generateVoiceResponse = async () => {
@@ -391,15 +423,18 @@ function App() {
             }));
           }
           
-          const aiResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'ai',
-            content: aiResponseText,
-            timestamp: new Date(),
-            mode: currentMode.id,
-            images: images.length > 0 ? images : undefined
-          };
-          setMessages(prev => [...prev, aiResponse]);
+          // Use typing simulation
+          simulateTyping(aiResponseText, (finalText) => {
+            const aiResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'ai',
+              content: finalText,
+              timestamp: new Date(),
+              mode: currentMode.id,
+              images: images.length > 0 ? images : undefined
+            };
+            setMessages(prev => [...prev, aiResponse]);
+          });
         } catch (error) {
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
@@ -409,8 +444,6 @@ function App() {
             mode: currentMode.id
           };
           setMessages(prev => [...prev, errorResponse]);
-        } finally {
-          setIsTyping(false);
         }
       };
 
@@ -735,11 +768,18 @@ function App() {
                 </div>
                 <div className="flex-1">
                   <div className={`inline-block p-3 lg:p-4 rounded-lg bg-gray-800 border border-gray-700 ${currentMode.textColor}`}>
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                      <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                    </div>
+                    {typingText ? (
+                      <div className="leading-relaxed whitespace-pre-wrap text-sm lg:text-base">
+                        {typingText}
+                        <span className="animate-pulse">|</span>
+                      </div>
+                    ) : (
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -810,6 +850,14 @@ function App() {
                 placeholder="Send a message..."
                 className="w-full p-3 lg:p-4 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 text-sm lg:text-base"
               />
+              {/* Google Search Icon */}
+              <button
+                onClick={handleGoogleSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-pink-400 transition-colors"
+                title="Search on Google"
+              >
+                <Search className="w-4 h-4" />
+              </button>
             </div>
             <button
               onClick={handleSendMessage}
