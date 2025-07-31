@@ -13,7 +13,9 @@ import {
   Video, 
   Circle,
   Menu,
-  X
+  X,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface Message {
@@ -23,6 +25,8 @@ interface Message {
   timestamp: Date;
   mode: string;
   isLoading?: boolean;
+  images?: string[];
+  hasBeenCopied?: boolean;
 }
 
 interface AIMode {
@@ -36,12 +40,12 @@ interface AIMode {
 
 const AI_MODES: AIMode[] = [
   {
-    id: 'beauty',
-    name: 'Beauty & Style',
-    icon: <Sparkles className="w-5 h-5" />,
-    color: '#EC4899',
-    textColor: 'text-pink-400',
-    bgColor: 'bg-pink-500'
+    id: 'general',
+    name: 'General AI',
+    icon: <Brain className="w-5 h-5" />,
+    color: '#3B82F6',
+    textColor: 'text-blue-400',
+    bgColor: 'bg-blue-500'
   },
   {
     id: 'writing',
@@ -60,14 +64,26 @@ const AI_MODES: AIMode[] = [
     bgColor: 'bg-emerald-500'
   },
   {
-    id: 'general',
-    name: 'General AI',
-    icon: <Brain className="w-5 h-5" />,
-    color: '#3B82F6',
-    textColor: 'text-blue-400',
-    bgColor: 'bg-blue-500'
+    id: 'beauty',
+    name: 'Beauty & Solutions',
+    icon: <Sparkles className="w-5 h-5" />,
+    color: '#EC4899',
+    textColor: 'text-pink-400',
+    bgColor: 'bg-pink-500'
   }
 ];
+
+// Daily usage tracking
+interface DailyUsage {
+  date: string;
+  imageGenerations: number;
+  uploads: number;
+}
+
+const DAILY_LIMITS = {
+  images: 6,
+  uploads: 10
+};
 
 function App() {
   const [currentMode, setCurrentMode] = useState<AIMode>(AI_MODES[0]);
@@ -76,9 +92,39 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [dailyUsage, setDailyUsage] = useState<DailyUsage>(() => {
+    const today = new Date().toDateString();
+    const saved = localStorage.getItem('xlyger-daily-usage');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.date === today) {
+        return parsed;
+      }
+    }
+    return { date: today, imageGenerations: 0, uploads: 0 };
+  });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Save daily usage to localStorage
+  useEffect(() => {
+    localStorage.setItem('xlyger-daily-usage', JSON.stringify(dailyUsage));
+  }, [dailyUsage]);
+
+  // Reset daily usage at midnight
+  useEffect(() => {
+    const checkDate = () => {
+      const today = new Date().toDateString();
+      if (dailyUsage.date !== today) {
+        setDailyUsage({ date: today, imageGenerations: 0, uploads: 0 });
+      }
+    };
+    
+    const interval = setInterval(checkDate, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [dailyUsage.date]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -96,6 +142,65 @@ function App() {
     }));
   };
 
+  // Generate images using a placeholder service (you can replace with actual image generation API)
+  const generateImages = async (query: string): Promise<string[]> => {
+    // Simulate image generation with placeholder images from Pexels
+    const imageQueries = [
+      `${query} professional`,
+      `${query} modern`,
+      `${query} elegant`
+    ];
+    
+    return imageQueries.map((q, index) => 
+      `https://images.pexels.com/photos/${1000000 + Math.floor(Math.random() * 1000000)}/pexels-photo-${1000000 + Math.floor(Math.random() * 1000000)}.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop`
+    );
+  };
+
+  // Check if query needs images
+  const shouldGenerateImages = (message: string, mode: string): boolean => {
+    const imageKeywords = [
+      'show', 'picture', 'image', 'photo', 'visual', 'example', 'product', 
+      'beauty', 'makeup', 'skincare', 'fashion', 'style', 'design', 'tutorial',
+      'education', 'learn', 'study', 'course', 'book', 'reference'
+    ];
+    
+    return imageKeywords.some(keyword => 
+      message.toLowerCase().includes(keyword)
+    ) || mode === 'beauty';
+  };
+
+  // Copy text to clipboard
+  const copyToClipboard = async (text: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, hasBeenCopied: true }
+          : msg
+      ));
+      
+      // Reset copy status after 2 seconds
+      setTimeout(() => {
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, hasBeenCopied: false }
+            : msg
+        ));
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+    }
+  };
+
+  // Format AI response text (make important text bold instead of using *)
+  const formatResponseText = (text: string): string => {
+    // Replace **text** with <strong>text</strong>
+    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Replace *text* with <em>text</em>
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    return formatted;
+  };
+
   const handleModeChange = (mode: AIMode) => {
     if (mode.id !== currentMode.id) {
       setCurrentMode(mode);
@@ -105,7 +210,7 @@ function App() {
       const switchMessage: Message = {
         id: Date.now().toString(),
         type: 'ai',
-        content: `Switched to ${mode.name} Mode. How can I help you?`,
+        content: `**Welcome to XLYGER AI**\n\n*${mode.name} Mode*\n\nHow can I help you today?`,
         timestamp: new Date(),
         mode: mode.id
       };
@@ -136,12 +241,25 @@ function App() {
         const conversationHistory = getConversationHistory();
         const aiResponseText = await geminiService.generateResponse(messageContent, conversationHistory);
         
+        // Check if we should generate images
+        const needsImages = shouldGenerateImages(messageContent, currentMode.id);
+        let images: string[] = [];
+        
+        if (needsImages && dailyUsage.imageGenerations < DAILY_LIMITS.images) {
+          images = await generateImages(messageContent);
+          setDailyUsage(prev => ({
+            ...prev,
+            imageGenerations: prev.imageGenerations + images.length
+          }));
+        }
+        
         const aiResponse: Message = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
           content: aiResponseText,
           timestamp: new Date(),
-          mode: currentMode.id
+          mode: currentMode.id,
+          images: images.length > 0 ? images : undefined
         };
         setMessages(prev => [...prev, aiResponse]);
       } catch (error) {
@@ -166,7 +284,7 @@ function App() {
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      content: `Welcome to ${currentMode.name} Mode. How can I help you?`,
+      content: `**Welcome to XLYGER AI**\n\n*${currentMode.name} Mode*\n\nHow can I help you today?`,
       timestamp: new Date(),
       mode: currentMode.id
     };
@@ -175,13 +293,20 @@ function App() {
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (file && dailyUsage.uploads < DAILY_LIMITS.uploads) {
+      setDailyUsage(prev => ({
+        ...prev,
+        uploads: prev.uploads + 1
+      }));
+      
       const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      const isAudio = file.type.startsWith('audio/');
       
       const fileMessage: Message = {
         id: Date.now().toString(),
         type: 'user',
-        content: `Uploaded ${isImage ? 'image' : 'file'}: ${file.name}`,
+        content: `Uploaded ${isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'file'}: ${file.name}`,
         timestamp: new Date(),
         mode: currentMode.id
       };
@@ -194,8 +319,10 @@ function App() {
         try {
           let aiResponseText;
           
-          if (isImage) {
+          if (isImage || isVideo) {
             aiResponseText = await geminiService.analyzeImage(file, "Please analyze this image and provide insights based on the current mode.");
+          } else if (isAudio) {
+            aiResponseText = `I can see you've uploaded an audio file "${file.name}". While I can process audio content, I'd be happy to help you with any questions about it or assist you in the current ${currentMode.name} mode.`;
           } else {
             aiResponseText = `I can see you've uploaded "${file.name}". While I can't directly process this file type, I'd be happy to help you with any questions about it or assist you in the current ${currentMode.name} mode.`;
           }
@@ -223,6 +350,8 @@ function App() {
       };
 
       analyzeFile();
+    } else if (dailyUsage.uploads >= DAILY_LIMITS.uploads) {
+      alert(`Daily upload limit reached (${DAILY_LIMITS.uploads}). Please try again tomorrow.`);
     }
     
     // Reset file input
@@ -250,12 +379,25 @@ function App() {
           const conversationHistory = getConversationHistory();
           const aiResponseText = await geminiService.generateResponse(transcript, conversationHistory);
           
+          // Check if we should generate images for voice queries too
+          const needsImages = shouldGenerateImages(transcript, currentMode.id);
+          let images: string[] = [];
+          
+          if (needsImages && dailyUsage.imageGenerations < DAILY_LIMITS.images) {
+            images = await generateImages(transcript);
+            setDailyUsage(prev => ({
+              ...prev,
+              imageGenerations: prev.imageGenerations + images.length
+            }));
+          }
+          
           const aiResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'ai',
             content: aiResponseText,
             timestamp: new Date(),
-            mode: currentMode.id
+            mode: currentMode.id,
+            images: images.length > 0 ? images : undefined
           };
           setMessages(prev => [...prev, aiResponse]);
         } catch (error) {
@@ -352,6 +494,25 @@ function App() {
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* Daily Usage Stats */}
+        <div className="p-4 lg:p-6 border-b border-gray-700">
+          <h3 className="text-gray-400 text-sm font-medium mb-2">Daily Usage</h3>
+          <div className="space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span>Images Generated:</span>
+              <span className={dailyUsage.imageGenerations >= DAILY_LIMITS.images ? 'text-red-400' : 'text-green-400'}>
+                {dailyUsage.imageGenerations}/{DAILY_LIMITS.images}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Files Uploaded:</span>
+              <span className={dailyUsage.uploads >= DAILY_LIMITS.uploads ? 'text-red-400' : 'text-green-400'}>
+                {dailyUsage.uploads}/{DAILY_LIMITS.uploads}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -457,9 +618,12 @@ function App() {
                 <div className={`w-12 h-12 lg:w-16 lg:h-16 ${currentMode.bgColor} rounded-full flex items-center justify-center mx-auto mb-4`}>
                   {React.cloneElement(currentMode.icon as React.ReactElement, { className: "w-6 h-6 lg:w-8 lg:h-8" })}
                 </div>
-                <h2 className={`text-xl lg:text-2xl font-bold ${currentMode.textColor} mb-2`}>
-                  {currentMode.name}
+                <h2 className="text-xl lg:text-2xl font-bold text-white mb-2">
+                  Welcome to XLYGER AI
                 </h2>
+                <p className={`text-lg ${currentMode.textColor} mb-4`}>
+                  {currentMode.name} Mode
+                </p>
                 <p className="text-gray-400 text-sm lg:text-base">How can I help you today?</p>
               </div>
             </div>
@@ -499,7 +663,48 @@ function App() {
                           ? 'bg-gray-700 text-white'
                           : `bg-gray-800 border border-gray-700 ${messageMode.textColor}`
                       }`}>
-                        <p className="leading-relaxed whitespace-pre-wrap text-sm lg:text-base">{message.content}</p>
+                        <div 
+                          className="leading-relaxed whitespace-pre-wrap text-sm lg:text-base"
+                          dangerouslySetInnerHTML={{ __html: formatResponseText(message.content) }}
+                        />
+                        
+                        {/* Display generated images */}
+                        {message.images && message.images.length > 0 && (
+                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {message.images.map((imageUrl, index) => (
+                              <div key={index} className="relative">
+                                <img 
+                                  src={imageUrl} 
+                                  alt={`Generated image ${index + 1}`}
+                                  className="w-full h-32 object-cover rounded-lg"
+                                  onError={(e) => {
+                                    e.currentTarget.src = `https://via.placeholder.com/300x200/374151/9CA3AF?text=Image+${index + 1}`;
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Copy button for AI messages */}
+                        {message.type === 'ai' && (
+                          <button
+                            onClick={() => copyToClipboard(message.content, message.id)}
+                            className="mt-2 flex items-center space-x-1 text-xs text-gray-400 hover:text-white transition-colors"
+                          >
+                            {message.hasBeenCopied ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
                         {message.timestamp.toLocaleTimeString()}
@@ -558,8 +763,13 @@ function App() {
             
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 lg:p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+              className={`p-2 lg:p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0 ${
+                dailyUsage.uploads >= DAILY_LIMITS.uploads 
+                  ? 'text-gray-500 cursor-not-allowed' 
+                  : 'text-pink-400 hover:text-pink-300'
+              }`}
               title="Upload file"
+              disabled={dailyUsage.uploads >= DAILY_LIMITS.uploads}
             >
               <Image className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
