@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { geminiService } from './services/geminiService';
+import { geminiService, MediaContent, MediaType } from './services/geminiService';
+import { speechService } from './services/speechService';
+import { mediaService } from './services/mediaService';
+import { cameraService } from './services/cameraService';
 import { 
   MessageSquare, 
   Sparkles, 
@@ -16,7 +19,11 @@ import {
   X,
   Copy,
   Check,
-  Search
+  Search,
+  FileText,
+  Camera,
+  Film,
+  Loader
 } from 'lucide-react';
 
 interface Message {
@@ -28,6 +35,10 @@ interface Message {
   isLoading?: boolean;
   images?: string[];
   hasBeenCopied?: boolean;
+  mediaType?: MediaType;
+  mediaContent?: File | string[];
+  mediaPreview?: string;
+  transcript?: string;
 }
 
 interface AIMode {
@@ -79,11 +90,17 @@ interface DailyUsage {
   date: string;
   imageGenerations: number;
   uploads: number;
+  videoProcessing: number;
+  audioProcessing: number;
+  voiceTranscriptions: number;
 }
 
 const DAILY_LIMITS = {
   images: 6,
-  uploads: 10
+  uploads: 10,
+  videoProcessing: 5,
+  audioProcessing: 10,
+  voiceTranscriptions: 15
 };
 
 function App() {
@@ -94,21 +111,39 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<HTMLVideoElement | null>(null);
   const [dailyUsage, setDailyUsage] = useState<DailyUsage>(() => {
     const today = new Date().toDateString();
     const saved = localStorage.getItem('xlyger-daily-usage');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed.date === today) {
-        return parsed;
+        // Ensure all fields exist (for backward compatibility)
+        return {
+          date: parsed.date,
+          imageGenerations: parsed.imageGenerations || 0,
+          uploads: parsed.uploads || 0,
+          videoProcessing: parsed.videoProcessing || 0,
+          audioProcessing: parsed.audioProcessing || 0,
+          voiceTranscriptions: parsed.voiceTranscriptions || 0
+        };
       }
     }
-    return { date: today, imageGenerations: 0, uploads: 0 };
+    return { 
+      date: today, 
+      imageGenerations: 0, 
+      uploads: 0,
+      videoProcessing: 0,
+      audioProcessing: 0,
+      voiceTranscriptions: 0
+    };
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const cameraContainerRef = useRef<HTMLDivElement>(null);
 
   // Save daily usage to localStorage
   useEffect(() => {
@@ -120,7 +155,14 @@ function App() {
     const checkDate = () => {
       const today = new Date().toDateString();
       if (dailyUsage.date !== today) {
-        setDailyUsage({ date: today, imageGenerations: 0, uploads: 0 });
+        setDailyUsage({ 
+          date: today, 
+          imageGenerations: 0, 
+          uploads: 0,
+          videoProcessing: 0,
+          audioProcessing: 0,
+          voiceTranscriptions: 0
+        });
       }
     };
     
@@ -324,9 +366,11 @@ function App() {
     setMessages([welcomeMessage]);
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && dailyUsage.uploads < DAILY_LIMITS.uploads) {
+    if (!file) return;
+    
+    if (dailyUsage.uploads < DAILY_LIMITS.uploads) {
       setDailyUsage(prev => ({
         ...prev,
         uploads: prev.uploads + 1
@@ -336,28 +380,402 @@ function App() {
       const isVideo = file.type.startsWith('video/');
       const isAudio = file.type.startsWith('audio/');
       
+      let mediaType: MediaType | undefined;
+      let mediaPreview: string | undefined;
+      
+      if (isImage) {
+        mediaType = 'image';
+        // Create preview URL for image
+        mediaPreview = URL.createObjectURL(file);
+      } else if (isVideo) {
+        mediaType = 'video';
+        try {
+          // Get video thumbnail
+          mediaPreview = await mediaService.getVideoThumbnail(file);
+        } catch (error) {
+          console.error('Error creating video thumbnail:', error);
+        }
+      } else if (isAudio) {
+        mediaType = 'audio';
+      }
+      
+      // Create user message with file
       const fileMessage: Message = {
         id: Date.now().toString(),
         type: 'user',
         content: `Uploaded ${isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'file'}: ${file.name}`,
         timestamp: new Date(),
-        mode: currentMode.id
+        mode: currentMode.id,
+        mediaType,
+        mediaContent: file,
+        mediaPreview
       };
+      
       setMessages(prev => [...prev, fileMessage]);
-
+      
+      // Add loading message
+      const loadingMessageId = (Date.now() + 1).toString();
+      const loadingMessage: Message = {
+        id: loadingMessageId,
+        type: 'ai',
+        content: "Analyzing your file...",
+        timestamp: new Date(),
+        mode: currentMode.id,
+        isLoading: true
+      };
+      
+      setMessages(prev => [...prev, loadingMessage]);
 
       // Generate AI response to file
-      const analyzeFile = async () => {
-        try {
-          let aiResponseText;
+      try {
+        let aiResponseText;
+        
+        if (isImage) {
+          // Process image
+          aiResponseText = await geminiService.analyzeImage(
+            file, 
+            `Please analyze this image and provide insights based on the current ${currentMode.name} mode.`
+          );
+        } else if (isVideo && dailyUsage.videoProcessing < DAILY_LIMITS.videoProcessing) {
+          // Process video by extracting frames
+          setDailyUsage(prev => ({
+            ...prev,
+            videoProcessing: prev.videoProcessing + 1
+          }));
           
-          if (isImage || isVideo) {
-            aiResponseText = await geminiService.analyzeImage(file, "Please analyze this image and provide insights based on the current mode.");
-          } else if (isAudio) {
-            aiResponseText = `I can see you've uploaded an audio file "${file.name}". While I can process audio content, I'd be happy to help you with any questions about it or assist you in the current ${currentMode.name} mode.`;
-          } else {
-            aiResponseText = `I can see you've uploaded "${file.name}". While I can't directly process this file type, I'd be happy to help you with any questions about it or assist you in the current ${currentMode.name} mode.`;
+          // Extract frames from video
+          const videoFrames = await mediaService.extractVideoFrames(file, 3);
+          
+          // Analyze video frames
+          aiResponseText = await geminiService.analyzeVideo(
+            videoFrames, 
+            `Please analyze this video and provide insights based on the current ${currentMode.name} mode.`
+          );
+        } else if (isAudio && dailyUsage.audioProcessing < DAILY_LIMITS.audioProcessing) {
+          // Process audio
+          setDailyUsage(prev => ({
+            ...prev,
+            audioProcessing: prev.audioProcessing + 1
+          }));
+          
+          // For now, we don't have direct audio transcription, so we use a placeholder
+          aiResponseText = await geminiService.analyzeAudio(
+            file,
+            undefined // No transcript available yet
+          );
+        } else if (isVideo && dailyUsage.videoProcessing >= DAILY_LIMITS.videoProcessing) {
+          aiResponseText = `I can see you've uploaded a video file "${file.name}". However, you've reached your daily limit for video processing (${DAILY_LIMITS.videoProcessing}). Please try again tomorrow or ask me questions about the video instead.`;
+        } else if (isAudio && dailyUsage.audioProcessing >= DAILY_LIMITS.audioProcessing) {
+          aiResponseText = `I can see you've uploaded an audio file "${file.name}". However, you've reached your daily limit for audio processing (${DAILY_LIMITS.audioProcessing}). Please try again tomorrow or ask me questions about the audio instead.`;
+        } else {
+          aiResponseText = `I can see you've uploaded "${file.name}". While I can't directly process this file type, I'd be happy to help you with any questions about it or assist you in the current ${currentMode.name} mode.`;
+        }
+        
+        // Remove loading message and add response
+        setMessages(prev => prev.filter(msg => msg.id !== loadingMessageId));
+        
+        // Use typing simulation
+        simulateTyping(aiResponseText, (finalText) => {
+          const aiResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'ai',
+            content: finalText,
+            timestamp: new Date(),
+            mode: currentMode.id
+          };
+          setMessages(prev => [...prev, aiResponse]);
+        });
+      } catch (error) {
+        // Remove loading message and add error response
+        setMessages(prev => prev.filter(msg => msg.id !== loadingMessageId));
+        
+        const errorResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: "I'm having trouble analyzing this file right now. Please try again later.",
+          timestamp: new Date(),
+          mode: currentMode.id
+        };
+        setMessages(prev => [...prev, errorResponse]);
+      }
+    } else if (dailyUsage.uploads >= DAILY_LIMITS.uploads) {
+      alert(`Daily upload limit reached (${DAILY_LIMITS.uploads}). Please try again tomorrow.`);
+    }
+    
+    // Reset file input
+    if (event.target) {
+      event.target.value = '';
+    }
+  };
+
+  const handleVoiceMessage = (transcript: string) => {
+    if (transcript.trim()) {
+      // Track voice transcription usage
+      if (dailyUsage.voiceTranscriptions < DAILY_LIMITS.voiceTranscriptions) {
+        setDailyUsage(prev => ({
+          ...prev,
+          voiceTranscriptions: prev.voiceTranscriptions + 1
+        }));
+        
+        const voiceMessage: Message = {
+          id: Date.now().toString(),
+          type: 'user',
+          content: `🎤 ${transcript}`,
+          timestamp: new Date(),
+          mode: currentMode.id,
+          mediaType: 'audio',
+          transcript
+        };
+        setMessages(prev => [...prev, voiceMessage]);
+        
+        // Add loading message
+        const loadingMessageId = (Date.now() + 1).toString();
+        const loadingMessage: Message = {
+          id: loadingMessageId,
+          type: 'ai',
+          content: "Processing your voice message...",
+          timestamp: new Date(),
+          mode: currentMode.id,
+          isLoading: true
+        };
+        
+        setMessages(prev => [...prev, loadingMessage]);
+
+        // Generate AI response to voice message
+        const generateVoiceResponse = async () => {
+          try {
+            const conversationHistory = getConversationHistory();
+            const aiResponseText = await geminiService.generateResponse(transcript, conversationHistory);
+            
+            // Check if we should generate images for voice queries too
+            const needsImages = shouldGenerateImages(transcript, currentMode.id);
+            let images: string[] = [];
+            
+            if (needsImages && dailyUsage.imageGenerations < DAILY_LIMITS.images) {
+              images = await generateImages(transcript);
+              setDailyUsage(prev => ({
+                ...prev,
+                imageGenerations: prev.imageGenerations + images.length
+              }));
+            }
+            
+            // Remove loading message
+            setMessages(prev => prev.filter(msg => msg.id !== loadingMessageId));
+            
+            // Use typing simulation
+            simulateTyping(aiResponseText, (finalText) => {
+              const aiResponse: Message = {
+                id: (Date.now() + 1).toString(),
+                type: 'ai',
+                content: finalText,
+                timestamp: new Date(),
+                mode: currentMode.id,
+                images: images.length > 0 ? images : undefined
+              };
+              setMessages(prev => [...prev, aiResponse]);
+            });
+          } catch (error) {
+            // Remove loading message
+            setMessages(prev => prev.filter(msg => msg.id !== loadingMessageId));
+            
+            const errorResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'ai',
+              content: "I'm having trouble processing your voice message right now. Please try again.",
+              timestamp: new Date(),
+              mode: currentMode.id
+            };
+            setMessages(prev => [...prev, errorResponse]);
           }
+        };
+
+        generateVoiceResponse();
+      } else {
+        alert(`Daily voice transcription limit reached (${DAILY_LIMITS.voiceTranscriptions}). Please try again tomorrow.`);
+      }
+    }
+  };
+
+  const startRecording = async () => {
+    if (dailyUsage.voiceTranscriptions >= DAILY_LIMITS.voiceTranscriptions) {
+      alert(`Daily voice transcription limit reached (${DAILY_LIMITS.voiceTranscriptions}). Please try again tomorrow.`);
+      return;
+    }
+    
+    try {
+      // First check if we can use the Web Speech API
+      if (speechService.isSpeechRecognitionSupported()) {
+        // Start speech recognition
+        setIsRecording(true);
+        
+        speechService.startListening(
+          // On result callback
+          (transcript) => {
+            setIsRecording(false);
+            handleVoiceMessage(transcript);
+          },
+          // On error callback
+          (error) => {
+            console.error('Speech recognition error:', error);
+            setIsRecording(false);
+            alert('Error with speech recognition: ' + error);
+          }
+        );
+        
+        // Set a timeout to stop recording after 10 seconds if no result
+        setTimeout(() => {
+          if (isRecording) {
+            speechService.stopListening();
+            setIsRecording(false);
+          }
+        }, 10000);
+      } else {
+        // Fallback to MediaRecorder API if Web Speech API is not available
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        const audioChunks: BlobPart[] = [];
+        
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+
+        mediaRecorderRef.current.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          const audioFile = new File([audioBlob], "voice-message.wav", { type: 'audio/wav' });
+          
+          // In a real implementation, you'd send this to a speech-to-text service
+          // For now, we'll use a placeholder transcript
+          handleVoiceMessage("This is a simulated transcription of your voice message. In a production app, this would be the actual transcribed text from your speech.");
+        };
+
+        mediaRecorderRef.current.start();
+        setIsRecording(true);
+
+        // Stop recording after 10 seconds
+        setTimeout(() => {
+          if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            stream.getTracks().forEach(track => track.stop());
+          }
+        }, 10000);
+      }
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      alert('Error accessing microphone. Please check your browser permissions.');
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = () => {
+    if (isRecording) {
+      // Stop speech recognition if it's being used
+      if (speechService.isSpeechRecognitionSupported()) {
+        speechService.stopListening();
+      }
+      
+      // Stop media recorder if it's being used
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+      
+      setIsRecording(false);
+    }
+  };
+  
+  // Camera handling functions
+  const startCamera = async () => {
+    try {
+      // Check if camera is available
+      const isCameraAvailable = await cameraService.isCameraAvailable();
+      if (!isCameraAvailable) {
+        alert('No camera detected on your device.');
+        return;
+      }
+      
+      // Initialize camera
+      const videoElement = await cameraService.initCamera();
+      setCameraStream(videoElement);
+      
+      // Open camera UI
+      setIsCameraOpen(true);
+      
+      // Add video element to the DOM
+      if (cameraContainerRef.current) {
+        cameraContainerRef.current.innerHTML = '';
+        cameraContainerRef.current.appendChild(videoElement);
+      }
+    } catch (error) {
+      console.error('Error starting camera:', error);
+      alert('Error accessing camera. Please check your browser permissions.');
+    }
+  };
+  
+  const stopCamera = () => {
+    cameraService.stopCamera();
+    setCameraStream(null);
+    setIsCameraOpen(false);
+    
+    // Clear camera container
+    if (cameraContainerRef.current) {
+      cameraContainerRef.current.innerHTML = '';
+    }
+  };
+  
+  const capturePhoto = async () => {
+    try {
+      // Capture photo
+      const photoDataUrl = await cameraService.capturePhoto();
+      
+      // Convert to file
+      const photoFile = cameraService.dataUrlToFile(photoDataUrl);
+      
+      // Close camera
+      stopCamera();
+      
+      // Process the captured photo like a file upload
+      if (dailyUsage.uploads < DAILY_LIMITS.uploads) {
+        setDailyUsage(prev => ({
+          ...prev,
+          uploads: prev.uploads + 1
+        }));
+        
+        // Create user message with photo
+        const photoMessage: Message = {
+          id: Date.now().toString(),
+          type: 'user',
+          content: 'Captured photo',
+          timestamp: new Date(),
+          mode: currentMode.id,
+          mediaType: 'image',
+          mediaContent: photoFile,
+          mediaPreview: photoDataUrl
+        };
+        
+        setMessages(prev => [...prev, photoMessage]);
+        
+        // Add loading message
+        const loadingMessageId = (Date.now() + 1).toString();
+        const loadingMessage: Message = {
+          id: loadingMessageId,
+          type: 'ai',
+          content: "Analyzing your photo...",
+          timestamp: new Date(),
+          mode: currentMode.id,
+          isLoading: true
+        };
+        
+        setMessages(prev => [...prev, loadingMessage]);
+        
+        // Analyze the photo
+        try {
+          const aiResponseText = await geminiService.analyzeImage(
+            photoFile, 
+            `Please analyze this photo I just captured and provide insights based on the current ${currentMode.name} mode.`
+          );
+          
+          // Remove loading message
+          setMessages(prev => prev.filter(msg => msg.id !== loadingMessageId));
           
           // Use typing simulation
           simulateTyping(aiResponseText, (finalText) => {
@@ -371,123 +789,24 @@ function App() {
             setMessages(prev => [...prev, aiResponse]);
           });
         } catch (error) {
+          // Remove loading message
+          setMessages(prev => prev.filter(msg => msg.id !== loadingMessageId));
+          
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'ai',
-            content: "I'm having trouble analyzing this file right now. Please try again later.",
+            content: "I'm having trouble analyzing this photo right now. Please try again later.",
             timestamp: new Date(),
             mode: currentMode.id
           };
           setMessages(prev => [...prev, errorResponse]);
         }
-      };
-
-      analyzeFile();
-    } else if (dailyUsage.uploads >= DAILY_LIMITS.uploads) {
-      alert(`Daily upload limit reached (${DAILY_LIMITS.uploads}). Please try again tomorrow.`);
-    }
-    
-    // Reset file input
-    if (event.target) {
-      event.target.value = '';
-    }
-  };
-
-  const handleVoiceMessage = (transcript: string) => {
-    if (transcript.trim()) {
-      const voiceMessage: Message = {
-        id: Date.now().toString(),
-        type: 'user',
-        content: `🎤 ${transcript}`,
-        timestamp: new Date(),
-        mode: currentMode.id
-      };
-      setMessages(prev => [...prev, voiceMessage]);
-
-
-      // Generate AI response to voice message
-      const generateVoiceResponse = async () => {
-        try {
-          const conversationHistory = getConversationHistory();
-          const aiResponseText = await geminiService.generateResponse(transcript, conversationHistory);
-          
-          // Check if we should generate images for voice queries too
-          const needsImages = shouldGenerateImages(transcript, currentMode.id);
-          let images: string[] = [];
-          
-          if (needsImages && dailyUsage.imageGenerations < DAILY_LIMITS.images) {
-            images = await generateImages(transcript);
-            setDailyUsage(prev => ({
-              ...prev,
-              imageGenerations: prev.imageGenerations + images.length
-            }));
-          }
-          
-          // Use typing simulation
-          simulateTyping(aiResponseText, (finalText) => {
-            const aiResponse: Message = {
-              id: (Date.now() + 1).toString(),
-              type: 'ai',
-              content: finalText,
-              timestamp: new Date(),
-              mode: currentMode.id,
-              images: images.length > 0 ? images : undefined
-            };
-            setMessages(prev => [...prev, aiResponse]);
-          });
-        } catch (error) {
-          const errorResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'ai',
-            content: "I'm having trouble processing your voice message right now. Please try again.",
-            timestamp: new Date(),
-            mode: currentMode.id
-          };
-          setMessages(prev => [...prev, errorResponse]);
-        }
-      };
-
-      generateVoiceResponse();
-    }
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      const audioChunks: BlobPart[] = [];
-      
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunks.push(event.data);
-      };
-
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        // For now, simulate speech-to-text with a placeholder
-        // In a real implementation, you'd use a speech-to-text service
-        handleVoiceMessage("This is a simulated transcription of your voice message. In a production app, this would be the actual transcribed text from your speech.");
-      };
-
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-
-      setTimeout(() => {
-        if (mediaRecorderRef.current && isRecording) {
-          mediaRecorderRef.current.stop();
-          setIsRecording(false);
-          stream.getTracks().forEach(track => track.stop());
-        }
-      }, 3000);
-
+      } else {
+        alert(`Daily upload limit reached (${DAILY_LIMITS.uploads}). Please try again tomorrow.`);
+      }
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+      console.error('Error capturing photo:', error);
+      alert('Error capturing photo. Please try again.');
     }
   };
 
@@ -499,6 +818,38 @@ function App() {
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
+      )}
+      
+      {/* Camera Overlay */}
+      {isCameraOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center">
+          <div className="relative w-full max-w-2xl">
+            {/* Camera feed container */}
+            <div 
+              ref={cameraContainerRef} 
+              className="w-full h-64 md:h-96 bg-gray-800 rounded-lg overflow-hidden"
+            ></div>
+            
+            {/* Camera controls */}
+            <div className="flex items-center justify-center space-x-4 mt-4">
+              <button
+                onClick={capturePhoto}
+                className="p-4 bg-pink-500 hover:bg-pink-600 rounded-full transition-colors"
+                title="Take photo"
+              >
+                <Camera className="w-6 h-6" />
+              </button>
+              
+              <button
+                onClick={stopCamera}
+                className="p-4 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors"
+                title="Cancel"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Sidebar */}
@@ -696,10 +1047,56 @@ function App() {
                           ? 'bg-gray-700 text-white'
                           : `bg-gray-800 border border-gray-700 ${messageMode.textColor}`
                       }`}>
-                        <div 
-                          className="leading-relaxed whitespace-pre-wrap text-sm lg:text-base"
-                          dangerouslySetInnerHTML={{ __html: formatResponseText(message.content) }}
-                        />
+                        {/* Loading indicator */}
+                        {message.isLoading ? (
+                          <div className="flex items-center space-x-2">
+                            <Loader className="w-4 h-4 animate-spin" />
+                            <span>{message.content}</span>
+                          </div>
+                        ) : (
+                          <div 
+                            className="leading-relaxed whitespace-pre-wrap text-sm lg:text-base"
+                            dangerouslySetInnerHTML={{ __html: formatResponseText(message.content) }}
+                          />
+                        )}
+                        
+                        {/* Display uploaded media */}
+                        {message.mediaType && message.mediaType === 'image' && message.mediaPreview && (
+                          <div className="mt-3">
+                            <img 
+                              src={message.mediaPreview} 
+                              alt="Uploaded image"
+                              className="max-w-full max-h-64 rounded-lg"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Display video thumbnail */}
+                        {message.mediaType && message.mediaType === 'video' && message.mediaPreview && (
+                          <div className="mt-3 relative">
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Film className="w-10 h-10 text-white opacity-80" />
+                            </div>
+                            <img 
+                              src={message.mediaPreview} 
+                              alt="Video thumbnail"
+                              className="max-w-full max-h-64 rounded-lg"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Display audio indicator */}
+                        {message.mediaType && message.mediaType === 'audio' && (
+                          <div className="mt-3 flex items-center space-x-2 p-2 bg-gray-700 rounded-lg">
+                            <Mic className="w-5 h-5 text-blue-400" />
+                            <span className="text-sm">Audio message</span>
+                            {message.transcript && (
+                              <span className="text-xs text-gray-400 italic">
+                                "{message.transcript.length > 50 ? message.transcript.substring(0, 50) + '...' : message.transcript}"
+                              </span>
+                            )}
+                          </div>
+                        )}
                         
                         {/* Display generated images */}
                         {message.images && message.images.length > 0 && (
@@ -820,8 +1217,22 @@ function App() {
                 isRecording ? 'text-red-400 animate-pulse' : 'text-pink-400 hover:text-pink-300'
               }`}
               title={isRecording ? 'Stop recording' : 'Record voice'}
+              disabled={dailyUsage.voiceTranscriptions >= DAILY_LIMITS.voiceTranscriptions}
             >
               <Mic className="w-4 h-4 lg:w-5 lg:h-5" />
+            </button>
+            
+            <button
+              onClick={startCamera}
+              className={`p-2 lg:p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0 ${
+                dailyUsage.uploads >= DAILY_LIMITS.uploads 
+                  ? 'text-gray-500 cursor-not-allowed' 
+                  : 'text-pink-400 hover:text-pink-300'
+              }`}
+              title="Take photo"
+              disabled={dailyUsage.uploads >= DAILY_LIMITS.uploads}
+            >
+              <Camera className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
             
             <button
