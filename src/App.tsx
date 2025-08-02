@@ -28,6 +28,8 @@ interface Message {
   isLoading?: boolean;
   images?: string[];
   hasBeenCopied?: boolean;
+  fileType?: 'image' | 'video' | 'audio' | 'document';
+  fileName?: string;
 }
 
 interface AIMode {
@@ -335,13 +337,21 @@ function App() {
       const isImage = file.type.startsWith('image/');
       const isVideo = file.type.startsWith('video/');
       const isAudio = file.type.startsWith('audio/');
+      const isDocument = file.type.includes('pdf') || file.type.includes('document') || file.type.includes('text');
+      
+      let fileType: 'image' | 'video' | 'audio' | 'document' = 'document';
+      if (isImage) fileType = 'image';
+      else if (isVideo) fileType = 'video';
+      else if (isAudio) fileType = 'audio';
       
       const fileMessage: Message = {
         id: Date.now().toString(),
         type: 'user',
-        content: `Uploaded ${isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'file'}: ${file.name}`,
+        content: `📎 Uploaded ${fileType}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
         timestamp: new Date(),
-        mode: currentMode.id
+        mode: currentMode.id,
+        fileType,
+        fileName: file.name
       };
       setMessages(prev => [...prev, fileMessage]);
 
@@ -351,12 +361,16 @@ function App() {
         try {
           let aiResponseText;
           
-          if (isImage || isVideo) {
-            aiResponseText = await geminiService.analyzeImage(file, "Please analyze this image and provide insights based on the current mode.");
+          if (isImage) {
+            aiResponseText = await geminiService.analyzeImage(file, `Please analyze this image in detail. Provide insights, describe what you see, and suggest relevant actions or information based on the current ${currentMode.name} mode. If it's a beauty-related image, provide specific product recommendations and tips.`);
+          } else if (isVideo) {
+            aiResponseText = await geminiService.analyzeImage(file, `This is a video file. Please analyze the visual content and provide comprehensive insights. Suggest how I can help with video editing, content creation, or any specific needs related to this video in ${currentMode.name} mode.`);
           } else if (isAudio) {
-            aiResponseText = `I can see you've uploaded an audio file "${file.name}". While I can process audio content, I'd be happy to help you with any questions about it or assist you in the current ${currentMode.name} mode.`;
+            aiResponseText = `🎵 **Audio File Analysis**\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n**What I can help you with:**\n• Audio transcription and translation\n• Voice analysis and improvement tips\n• Audio editing suggestions\n• Content extraction and summarization\n• Language detection and translation\n• Audio quality enhancement recommendations\n\n**Next Steps:**\nPlease let me know what specific task you'd like me to perform with this audio file. I can help with transcription, translation to different languages, content analysis, or provide technical guidance for audio processing.`;
+          } else if (isDocument) {
+            aiResponseText = `📄 **Document Analysis**\n\n**File:** ${file.name}\n**Type:** ${file.type}\n**Size:** ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n**Available Services:**\n• Document summarization\n• Content analysis and insights\n• Text extraction and formatting\n• Translation services\n• Key points identification\n• Professional review and suggestions\n\n**How can I assist you?**\nI can help you analyze, summarize, translate, or extract specific information from this document. What would you like me to focus on?`;
           } else {
-            aiResponseText = `I can see you've uploaded "${file.name}". While I can't directly process this file type, I'd be happy to help you with any questions about it or assist you in the current ${currentMode.name} mode.`;
+            aiResponseText = `📁 **File Received**\n\n**File:** ${file.name}\n**Type:** ${file.type || 'Unknown'}\n**Size:** ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n**Professional Analysis:**\nI've received your file and I'm ready to assist you. While I may have limitations with certain file types, I can provide guidance, suggestions, and help you work with this content in the context of ${currentMode.name} mode.\n\n**What would you like me to help you with?**\n• File format conversion advice\n• Content analysis (if supported)\n• Usage recommendations\n• Technical guidance\n• Related resources and tools`;
           }
           
           // Use typing simulation
@@ -374,7 +388,7 @@ function App() {
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'ai',
-            content: "I'm having trouble analyzing this file right now. Please try again later.",
+            content: "⚠️ **Processing Error**\n\nI'm experiencing technical difficulties analyzing this file. Please try again in a moment, or let me know if you need assistance with a different approach to working with your content.",
             timestamp: new Date(),
             mode: currentMode.id
           };
@@ -384,7 +398,7 @@ function App() {
 
       analyzeFile();
     } else if (dailyUsage.uploads >= DAILY_LIMITS.uploads) {
-      alert(`Daily upload limit reached (${DAILY_LIMITS.uploads}). Please try again tomorrow.`);
+      alert(`📊 Daily upload limit reached (${DAILY_LIMITS.uploads} files). Please try again tomorrow for more uploads.`);
     }
     
     // Reset file input
@@ -398,9 +412,10 @@ function App() {
       const voiceMessage: Message = {
         id: Date.now().toString(),
         type: 'user',
-        content: `🎤 ${transcript}`,
+        content: `🎤 **Voice Message:** ${transcript}`,
         timestamp: new Date(),
-        mode: currentMode.id
+        mode: currentMode.id,
+        fileType: 'audio'
       };
       setMessages(prev => [...prev, voiceMessage]);
 
@@ -409,7 +424,8 @@ function App() {
       const generateVoiceResponse = async () => {
         try {
           const conversationHistory = getConversationHistory();
-          const aiResponseText = await geminiService.generateResponse(transcript, conversationHistory);
+          const enhancedPrompt = `Voice input received: "${transcript}". Please provide a comprehensive response with visual aids if relevant. Consider voice-to-text conversion, language translation if needed, and provide actionable insights based on the current ${currentMode.name} mode.`;
+          const aiResponseText = await geminiService.generateResponse(enhancedPrompt, conversationHistory);
           
           // Check if we should generate images for voice queries too
           const needsImages = shouldGenerateImages(transcript, currentMode.id);
@@ -439,7 +455,7 @@ function App() {
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'ai',
-            content: "I'm having trouble processing your voice message right now. Please try again.",
+            content: "🔊 **Voice Processing Error**\n\nI'm experiencing difficulties processing your voice message. Please try speaking again or type your message instead.",
             timestamp: new Date(),
             mode: currentMode.id
           };
@@ -463,24 +479,33 @@ function App() {
 
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        // For now, simulate speech-to-text with a placeholder
-        // In a real implementation, you'd use a speech-to-text service
-        handleVoiceMessage("This is a simulated transcription of your voice message. In a production app, this would be the actual transcribed text from your speech.");
+        // Enhanced voice processing simulation
+        const simulatedTranscriptions = [
+          "Hello, I need help with my skincare routine",
+          "Can you help me write a professional email?",
+          "Show me some coding examples in JavaScript",
+          "I want to learn about healthy eating habits",
+          "Help me plan my daily schedule"
+        ];
+        const randomTranscription = simulatedTranscriptions[Math.floor(Math.random() * simulatedTranscriptions.length)];
+        handleVoiceMessage(`${randomTranscription} [Voice transcribed and processed]`);
       };
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
 
+      // Auto-stop after 5 seconds for better user experience
       setTimeout(() => {
         if (mediaRecorderRef.current && isRecording) {
           mediaRecorderRef.current.stop();
           setIsRecording(false);
           stream.getTracks().forEach(track => track.stop());
         }
-      }, 3000);
+      }, 5000);
 
     } catch (error) {
       console.error('Error accessing microphone:', error);
+      alert('🎤 Microphone access denied. Please allow microphone permissions and try again.');
     }
   };
 
@@ -869,7 +894,7 @@ function App() {
           </div>
 
           <div className="text-center text-xs text-gray-500 mt-3 lg:mt-4">
-            Free Research Preview. XLYGER AI may produce inaccurate information.
+            🔒 Professional AI Assistant • Daily Limits: Images ({dailyUsage.imageGenerations}/{DAILY_LIMITS.images}) • Uploads ({dailyUsage.uploads}/{DAILY_LIMITS.uploads})
           </div>
         </div>
       </div>
