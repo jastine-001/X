@@ -638,6 +638,7 @@ function App() {
               onClick={() => {
                 setInputMessage("Show me examples");
                 setIsSidebarOpen(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
             >
