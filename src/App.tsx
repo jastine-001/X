@@ -650,14 +650,27 @@ function App() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
-        <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
+        <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800 sticky top-0 z-30">
           <button
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-700 rounded-lg transition-colors shadow-lg"
+            title="Open Menu"
           >
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                handleNewChat();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="p-1 text-gray-400 hover:text-pink-400 transition-colors"
+              title="Home"
+            >
+              <div className="w-6 h-6 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center">
+                <span className="font-bold text-xs text-white">XL</span>
+              </div>
+            </button>
             <div className={`w-6 h-6 ${currentMode.bgColor} rounded-full flex items-center justify-center`}>
               {React.cloneElement(currentMode.icon as React.ReactElement, { className: "w-3 h-3" })}
             </div>
@@ -665,7 +678,15 @@ function App() {
               {currentMode.name}
             </span>
           </div>
-          <div className="w-10"></div> {/* Spacer for centering */}
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="p-2 text-gray-400 hover:text-pink-400 transition-colors"
+            title="Scroll to top"
+          >
+            <div className="w-5 h-5 border-2 border-current rounded-full flex items-center justify-center">
+              <div className="w-1 h-1 bg-current rounded-full"></div>
+            </div>
+          </button>
         </div>
 
         {/* Chat Messages */}
@@ -815,7 +836,48 @@ function App() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-gray-700 p-3 lg:p-6 bg-gray-900 safe-area-inset-bottom">
+        <div className="border-t border-gray-700 p-3 lg:p-6 bg-gray-900 safe-area-inset-bottom sticky bottom-0 z-20">
+          {/* Mobile Navigation Bar */}
+          <div className="lg:hidden flex items-center justify-between mb-3 p-2 bg-gray-800 rounded-lg">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex items-center space-x-2 p-2 text-pink-400 hover:text-pink-300 transition-colors"
+              title="Open Menu"
+            >
+              <Menu className="w-4 h-4" />
+              <span className="text-xs">Menu</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                handleNewChat();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex items-center space-x-2 p-2 text-gray-400 hover:text-pink-400 transition-colors"
+              title="New Chat & Home"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="text-xs">New</span>
+            </button>
+            
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex items-center space-x-2 p-2 text-gray-400 hover:text-pink-400 transition-colors"
+              title="Scroll to Top"
+            >
+              <div className="w-4 h-4 border border-current rounded-full flex items-center justify-center">
+                <div className="w-1 h-1 bg-current rounded-full"></div>
+              </div>
+              <span className="text-xs">Top</span>
+            </button>
+            
+            <div className="flex items-center space-x-1 text-xs text-gray-500">
+              <span>{dailyUsage.imageGenerations}/{DAILY_LIMITS.images}</span>
+              <span>•</span>
+              <span>{dailyUsage.uploads}/{DAILY_LIMITS.uploads}</span>
+            </div>
+          </div>
+          
           {/* Media buttons - horizontal scroll on mobile */}
           <div className="flex items-center space-x-2 lg:space-x-4 mb-3 lg:mb-4 overflow-x-auto pb-2">
             <input
@@ -894,7 +956,12 @@ function App() {
           </div>
 
           <div className="text-center text-xs text-gray-500 mt-3 lg:mt-4">
-            🔒 Professional AI Assistant • Daily Limits: Images ({dailyUsage.imageGenerations}/{DAILY_LIMITS.images}) • Uploads ({dailyUsage.uploads}/{DAILY_LIMITS.uploads})
+            <div className="hidden lg:block">
+              🔒 Professional AI Assistant • Daily Limits: Images ({dailyUsage.imageGenerations}/{DAILY_LIMITS.images}) • Uploads ({dailyUsage.uploads}/{DAILY_LIMITS.uploads})
+            </div>
+            <div className="lg:hidden">
+              🔒 XLYGER AI • Swipe up for more • Tap menu anytime
+            </div>
           </div>
         </div>
       </div>
