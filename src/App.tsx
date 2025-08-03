@@ -493,15 +493,12 @@ function App() {
       setIsRecording(true);
 
       // Auto-stop after 5 seconds for better user experience
-        "What is biology?",
-        "How do I improve my skincare routine?",
-        "Can you help me write a professional email?",
-        "Show me coding examples in JavaScript",
-        "Explain quantum physics",
-        "Help me plan my daily schedule"
+      setTimeout(() => {
+        if (mediaRecorderRef.current && isRecording) {
+          mediaRecorderRef.current.stop();
+          setIsRecording(false);
         }
       }, 5000);
-      handleVoiceMessage(randomTranscription);
     } catch (error) {
       console.error('Error accessing microphone:', error);
       alert('Microphone access denied. Please allow microphone permissions and try again.');
