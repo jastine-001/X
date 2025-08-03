@@ -362,15 +362,15 @@ function App() {
           let aiResponseText;
           
           if (isImage) {
-            aiResponseText = await geminiService.analyzeImage(file, `Please analyze this image in detail. Provide insights, describe what you see, and suggest relevant actions or information based on the current ${currentMode.name} mode. If it's a beauty-related image, provide specific product recommendations and tips.`);
+            aiResponseText = await geminiService.analyzeImage(file, `Please analyze this image and provide detailed insights. Describe what you see and suggest relevant information based on the current ${currentMode.name} mode.`);
           } else if (isVideo) {
-            aiResponseText = await geminiService.analyzeImage(file, `This is a video file. Please analyze the visual content and provide comprehensive insights. Suggest how I can help with video editing, content creation, or any specific needs related to this video in ${currentMode.name} mode.`);
+            aiResponseText = `I can see you've uploaded a video file. I can help you with video analysis, content creation suggestions, editing recommendations, and technical guidance. What specific aspect of this video would you like me to focus on?`;
           } else if (isAudio) {
-            aiResponseText = `🎵 **Audio File Analysis**\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n**What I can help you with:**\n• Audio transcription and translation\n• Voice analysis and improvement tips\n• Audio editing suggestions\n• Content extraction and summarization\n• Language detection and translation\n• Audio quality enhancement recommendations\n\n**Next Steps:**\nPlease let me know what specific task you'd like me to perform with this audio file. I can help with transcription, translation to different languages, content analysis, or provide technical guidance for audio processing.`;
+            aiResponseText = `I can help you with this audio file in several ways. I can provide transcription services, translate content to different languages, analyze voice quality, suggest audio editing improvements, extract key information, and offer technical guidance for audio processing. What would you like me to focus on with this audio file?`;
           } else if (isDocument) {
-            aiResponseText = `📄 **Document Analysis**\n\n**File:** ${file.name}\n**Type:** ${file.type}\n**Size:** ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n**Available Services:**\n• Document summarization\n• Content analysis and insights\n• Text extraction and formatting\n• Translation services\n• Key points identification\n• Professional review and suggestions\n\n**How can I assist you?**\nI can help you analyze, summarize, translate, or extract specific information from this document. What would you like me to focus on?`;
+            aiResponseText = `I can help you work with this document in various ways. I can provide document summarization, content analysis and insights, text extraction and formatting, translation services, identify key points, and offer professional review and suggestions. What specific assistance do you need with this document?`;
           } else {
-            aiResponseText = `📁 **File Received**\n\n**File:** ${file.name}\n**Type:** ${file.type || 'Unknown'}\n**Size:** ${(file.size / 1024 / 1024).toFixed(2)} MB\n\n**Professional Analysis:**\nI've received your file and I'm ready to assist you. While I may have limitations with certain file types, I can provide guidance, suggestions, and help you work with this content in the context of ${currentMode.name} mode.\n\n**What would you like me to help you with?**\n• File format conversion advice\n• Content analysis (if supported)\n• Usage recommendations\n• Technical guidance\n• Related resources and tools`;
+            aiResponseText = `I've received your file and I'm ready to assist you. I can provide guidance, suggestions, and help you work with this content. I can offer file format conversion advice, content analysis where supported, usage recommendations, technical guidance, and suggest related resources and tools. How would you like me to help you with this file?`;
           }
           
           // Use typing simulation
@@ -388,7 +388,7 @@ function App() {
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'ai',
-            content: "⚠️ **Processing Error**\n\nI'm experiencing technical difficulties analyzing this file. Please try again in a moment, or let me know if you need assistance with a different approach to working with your content.",
+            content: "I'm experiencing technical difficulties analyzing this file. Please try again in a moment, or let me know if you need assistance with a different approach to working with your content.",
             timestamp: new Date(),
             mode: currentMode.id
           };
@@ -412,10 +412,9 @@ function App() {
       const voiceMessage: Message = {
         id: Date.now().toString(),
         type: 'user',
-        content: `🎤 **Voice Message:** ${transcript}`,
+        content: transcript,
         timestamp: new Date(),
-        mode: currentMode.id,
-        fileType: 'audio'
+        mode: currentMode.id
       };
       setMessages(prev => [...prev, voiceMessage]);
 
@@ -424,8 +423,7 @@ function App() {
       const generateVoiceResponse = async () => {
         try {
           const conversationHistory = getConversationHistory();
-          const enhancedPrompt = `Voice input received: "${transcript}". Please provide a comprehensive response with visual aids if relevant. Consider voice-to-text conversion, language translation if needed, and provide actionable insights based on the current ${currentMode.name} mode.`;
-          const aiResponseText = await geminiService.generateResponse(enhancedPrompt, conversationHistory);
+          const aiResponseText = await geminiService.generateResponse(transcript, conversationHistory);
           
           // Check if we should generate images for voice queries too
           const needsImages = shouldGenerateImages(transcript, currentMode.id);
@@ -455,7 +453,7 @@ function App() {
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'ai',
-            content: "🔊 **Voice Processing Error**\n\nI'm experiencing difficulties processing your voice message. Please try speaking again or type your message instead.",
+            content: "I'm experiencing difficulties processing your voice message. Please try speaking again or type your message instead.",
             timestamp: new Date(),
             mode: currentMode.id
           };
@@ -495,17 +493,18 @@ function App() {
       setIsRecording(true);
 
       // Auto-stop after 5 seconds for better user experience
-      setTimeout(() => {
-        if (mediaRecorderRef.current && isRecording) {
-          mediaRecorderRef.current.stop();
-          setIsRecording(false);
-          stream.getTracks().forEach(track => track.stop());
+        "What is biology?",
+        "How do I improve my skincare routine?",
+        "Can you help me write a professional email?",
+        "Show me coding examples in JavaScript",
+        "Explain quantum physics",
+        "Help me plan my daily schedule"
         }
       }, 5000);
-
+      handleVoiceMessage(randomTranscription);
     } catch (error) {
       console.error('Error accessing microphone:', error);
-      alert('🎤 Microphone access denied. Please allow microphone permissions and try again.');
+      alert('Microphone access denied. Please allow microphone permissions and try again.');
     }
   };
 
