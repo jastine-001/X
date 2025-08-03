@@ -503,10 +503,6 @@ function App() {
       console.error('Error accessing microphone:', error);
       alert('Microphone access denied. Please allow microphone permissions and try again.');
     }
-    } catch (error) {
-      console.error('Error accessing microphone:', error);
-      alert('Microphone access denied. Please allow microphone permissions and try again.');
-    }
   };
 
   const stopRecording = () => {
