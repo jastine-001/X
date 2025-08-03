@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { geminiService } from './services/geminiService';
-import {
-  MessageSquare,
-  Sparkles,
-  PenTool,
-  Code,
-  Brain,
-  Plus,
-  Send,
-  Image,
-  Mic,
-  Video,
+import { 
+  MessageSquare, 
+  Sparkles, 
+  PenTool, 
+  Code, 
+  Brain, 
+  Plus, 
+  Send, 
+  Image, 
+  Mic, 
+  Video, 
   Circle,
   Menu,
   X,
@@ -21,29 +21,114 @@ import {
 
 interface Message {
   id: string;
-  text: string;
-  isUser: boolean;
+  type: 'user' | 'ai';
+  content: string;
   timestamp: Date;
+  mode: string;
+  isLoading?: boolean;
+  images?: string[];
+  hasBeenCopied?: boolean;
+  fileType?: 'image' | 'video' | 'audio' | 'document';
+  fileName?: string;
 }
 
-interface Conversation {
+interface AIMode {
   id: string;
-  title: string;
-  messages: Message[];
-  lastUpdated: Date;
+  name: string;
+  icon: React.ReactNode;
+  color: string;
+  textColor: string;
+  bgColor: string;
 }
 
-const App: React.FC = () => {
+const AI_MODES: AIMode[] = [
+  {
+    id: 'general',
+    name: 'General AI',
+    icon: <Brain className="w-5 h-5" />,
+    color: '#EC4899',
+    textColor: 'text-pink-400',
+    bgColor: 'bg-pink-500'
+  },
+  {
+    id: 'writing',
+    name: 'Writing Assistant',
+    icon: <PenTool className="w-5 h-5" />,
+    color: '#8B5CF6',
+    textColor: 'text-purple-400',
+    bgColor: 'bg-purple-500'
+  },
+  {
+    id: 'code',
+    name: 'Code Helper',
+    icon: <Code className="w-5 h-5" />,
+    color: '#10B981',
+    textColor: 'text-emerald-400',
+    bgColor: 'bg-emerald-500'
+  },
+  {
+    id: 'beauty',
+    name: 'Beauty & Solutions',
+    icon: <Sparkles className="w-5 h-5" />,
+    color: '#EC4899',
+    textColor: 'text-pink-400',
+    bgColor: 'bg-pink-500'
+  }
+];
+
+// Daily usage tracking
+interface DailyUsage {
+  date: string;
+  imageGenerations: number;
+  uploads: number;
+}
+
+const DAILY_LIMITS = {
+  images: 6,
+  uploads: 10
+};
+
+function App() {
+  const [currentMode, setCurrentMode] = useState<AIMode>(AI_MODES[0]);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [inputMessage, setInputMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingText, setTypingText] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [dailyUsage, setDailyUsage] = useState<DailyUsage>(() => {
+    const today = new Date().toDateString();
+    const saved = localStorage.getItem('xlyger-daily-usage');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.date === today) {
+        return parsed;
+      }
+    }
+    return { date: today, imageGenerations: 0, uploads: 0 };
+  });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Save daily usage to localStorage
+  useEffect(() => {
+    localStorage.setItem('xlyger-daily-usage', JSON.stringify(dailyUsage));
+  }, [dailyUsage]);
+
+  // Reset daily usage at midnight
+  useEffect(() => {
+    const checkDate = () => {
+      const today = new Date().toDateString();
+      if (dailyUsage.date !== today) {
+        setDailyUsage({ date: today, imageGenerations: 0, uploads: 0 });
+      }
+    };
+    
+    const interval = setInterval(checkDate, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [dailyUsage.date]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -52,219 +137,331 @@ const App: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  const generateMessageId = () => Math.random().toString(36).substr(2, 9);
-
-  const createNewConversation = () => {
-    const newConversation: Conversation = {
-      id: generateMessageId(),
-      title: 'New Chat',
-      messages: [],
-      lastUpdated: new Date()
-    };
-    setConversations(prev => [newConversation, ...prev]);
-    setCurrentConversationId(newConversation.id);
-    setMessages([]);
-    setIsSidebarOpen(false);
+  
+  // Get conversation history for context
+  const getConversationHistory = () => {
+    return messages.map(msg => ({
+      role: msg.type === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    }));
   };
 
-  const switchConversation = (conversationId: string) => {
-    const conversation = conversations.find(c => c.id === conversationId);
-    if (conversation) {
-      setCurrentConversationId(conversationId);
-      setMessages(conversation.messages);
-      setIsSidebarOpen(false);
-    }
-  };
-
-  const updateConversationTitle = (conversationId: string, firstMessage: string) => {
-    const title = firstMessage.length > 30 ? firstMessage.substring(0, 30) + '...' : firstMessage;
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, title, lastUpdated: new Date() }
-          : conv
-      )
+  // Generate images using a placeholder service (you can replace with actual image generation API)
+  const generateImages = async (query: string): Promise<string[]> => {
+    // Simulate image generation with placeholder images from Pexels
+    const imageQueries = [
+      `${query} professional`,
+      `${query} modern`,
+      `${query} elegant`
+    ];
+    
+    return imageQueries.map((q, index) => 
+      `https://images.pexels.com/photos/${1000000 + Math.floor(Math.random() * 1000000)}/pexels-photo-${1000000 + Math.floor(Math.random() * 1000000)}.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop`
     );
   };
 
-  const updateConversationMessages = (conversationId: string, newMessages: Message[]) => {
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, messages: newMessages, lastUpdated: new Date() }
-          : conv
-      )
-    );
+  // Check if query needs images
+  const shouldGenerateImages = (message: string, mode: string): boolean => {
+    const imageKeywords = [
+      'show', 'picture', 'image', 'photo', 'visual', 'example', 'product', 
+      'beauty', 'makeup', 'skincare', 'fashion', 'style', 'design', 'tutorial',
+      'education', 'learn', 'study', 'course', 'book', 'reference'
+    ];
+    
+    return imageKeywords.some(keyword => 
+      message.toLowerCase().includes(keyword)
+    ) || mode === 'beauty';
   };
 
+  // Copy text to clipboard
   const copyToClipboard = async (text: string, messageId: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedMessageId(messageId);
-      setTimeout(() => setCopiedMessageId(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() || isLoading) return;
-
-    let conversationId = currentConversationId;
-    
-    if (!conversationId) {
-      createNewConversation();
-      conversationId = conversations[0]?.id || generateMessageId();
-    }
-
-    const userMessage: Message = {
-      id: generateMessageId(),
-      text: inputText.trim(),
-      isUser: true,
-      timestamp: new Date()
-    };
-
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setInputText('');
-    setIsLoading(true);
-
-    if (conversationId && newMessages.length === 1) {
-      updateConversationTitle(conversationId, userMessage.text);
-    }
-
-    try {
-      const response = await geminiService.generateResponse(inputText.trim());
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, hasBeenCopied: true }
+          : msg
+      ));
       
-      const aiMessage: Message = {
-        id: generateMessageId(),
-        text: response,
-        isUser: false,
-        timestamp: new Date()
-      };
-
-      const updatedMessages = [...newMessages, aiMessage];
-      setMessages(updatedMessages);
-      
-      if (conversationId) {
-        updateConversationMessages(conversationId, updatedMessages);
-      }
+      // Reset copy status after 2 seconds
+      setTimeout(() => {
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, hasBeenCopied: false }
+            : msg
+        ));
+      }, 2000);
     } catch (error) {
-      console.error('Error generating response:', error);
-      const errorMessage: Message = {
-        id: generateMessageId(),
-        text: 'Sorry, I encountered an error while processing your request. Please try again.',
-        isUser: false,
-        timestamp: new Date()
-      };
-      
-      const updatedMessages = [...newMessages, errorMessage];
-      setMessages(updatedMessages);
-      
-      if (conversationId) {
-        updateConversationMessages(conversationId, updatedMessages);
-      }
-    } finally {
-      setIsLoading(false);
+      console.error('Failed to copy text:', error);
     }
   };
 
-  const handleVoiceMessage = async (transcribedText: string) => {
-    if (!transcribedText.trim() || isLoading) return;
+  // Format AI response text (make important text bold instead of using *)
+  const formatResponseText = (text: string): string => {
+    // Replace **text** with <strong>text</strong>
+    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Replace *text* with <em>text</em>
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    return formatted;
+  };
 
-    let conversationId = currentConversationId;
+  // Simulate websocket-style typing effect
+  const simulateTyping = (text: string, callback: (finalText: string) => void) => {
+    setTypingText('');
+    setIsTyping(true);
     
-    if (!conversationId) {
-      createNewConversation();
-      conversationId = conversations[0]?.id || generateMessageId();
-    }
+    let currentIndex = 0;
+    const typingSpeed = 30; // milliseconds per character
+    
+    const typeNextChar = () => {
+      if (currentIndex < text.length) {
+        setTypingText(text.substring(0, currentIndex + 1));
+        currentIndex++;
+        setTimeout(typeNextChar, typingSpeed);
+      } else {
+        setIsTyping(false);
+        setTypingText('');
+        callback(text);
+      }
+    };
+    
+    typeNextChar();
+  };
 
+  // Handle Google search
+  const handleGoogleSearch = () => {
+    if (inputMessage.trim()) {
+      const searchQuery = encodeURIComponent(inputMessage.trim());
+      window.open(`https://www.google.com/search?q=${searchQuery}`, '_blank');
+    }
+  };
+
+  const handleModeChange = (mode: AIMode) => {
+    if (mode.id !== currentMode.id) {
+      setCurrentMode(mode);
+      geminiService.setMode(mode.id);
+      
+      // Add mode switch message
+      const switchMessage: Message = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: `**Welcome to XLYGER AI**\n\n*${mode.name} Mode*\n\nHow can I help you today?`,
+        timestamp: new Date(),
+        mode: mode.id
+      };
+      
+      setMessages(prev => [...prev, switchMessage]);
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (!inputMessage.trim()) return;
+
+    const messageContent = inputMessage.trim();
     const userMessage: Message = {
-      id: generateMessageId(),
-      text: transcribedText.trim(),
-      isUser: true,
-      timestamp: new Date()
+      id: Date.now().toString(),
+      type: 'user',
+      content: messageContent,
+      timestamp: new Date(),
+      mode: currentMode.id
     };
 
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setIsLoading(true);
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
 
-    if (conversationId && newMessages.length === 1) {
-      updateConversationTitle(conversationId, userMessage.text);
-    }
+    // Generate real AI response
+    const generateResponse = async () => {
+      try {
+        const conversationHistory = getConversationHistory();
+        const aiResponseText = await geminiService.generateResponse(messageContent, conversationHistory);
+        
+        // Check if we should generate images
+        const needsImages = shouldGenerateImages(messageContent, currentMode.id);
+        let images: string[] = [];
+        
+        if (needsImages && dailyUsage.imageGenerations < DAILY_LIMITS.images) {
+          images = await generateImages(messageContent);
+          setDailyUsage(prev => ({
+            ...prev,
+            imageGenerations: prev.imageGenerations + images.length
+          }));
+        }
+        
+        // Use typing simulation
+        simulateTyping(aiResponseText, (finalText) => {
+          const aiResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'ai',
+            content: finalText,
+            timestamp: new Date(),
+            mode: currentMode.id,
+            images: images.length > 0 ? images : undefined
+          };
+          setMessages(prev => [...prev, aiResponse]);
+        });
+      } catch (error) {
+        const errorResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'ai',
+          content: "I apologize, but I'm experiencing some technical difficulties. Please try again in a moment.",
+          timestamp: new Date(),
+          mode: currentMode.id
+        };
+        setMessages(prev => [...prev, errorResponse]);
+      }
+    };
 
-    try {
-      const response = await geminiService.generateResponse(transcribedText.trim());
+    generateResponse();
+  };
+
+  const handleNewChat = () => {
+    setMessages([]);
+    const welcomeMessage: Message = {
+      id: Date.now().toString(),
+      type: 'ai',
+      content: `**Welcome to XLYGER AI**\n\n*${currentMode.name} Mode*\n\nHow can I help you today?`,
+      timestamp: new Date(),
+      mode: currentMode.id
+    };
+    setMessages([welcomeMessage]);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && dailyUsage.uploads < DAILY_LIMITS.uploads) {
+      setDailyUsage(prev => ({
+        ...prev,
+        uploads: prev.uploads + 1
+      }));
       
-      const aiMessage: Message = {
-        id: generateMessageId(),
-        text: response,
-        isUser: false,
-        timestamp: new Date()
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      const isAudio = file.type.startsWith('audio/');
+      const isDocument = file.type.includes('pdf') || file.type.includes('document') || file.type.includes('text');
+      
+      let fileType: 'image' | 'video' | 'audio' | 'document' = 'document';
+      if (isImage) fileType = 'image';
+      else if (isVideo) fileType = 'video';
+      else if (isAudio) fileType = 'audio';
+      
+      const fileMessage: Message = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: `📎 Uploaded ${fileType}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
+        timestamp: new Date(),
+        mode: currentMode.id,
+        fileType,
+        fileName: file.name
+      };
+      setMessages(prev => [...prev, fileMessage]);
+
+
+      // Generate AI response to file
+      const analyzeFile = async () => {
+        try {
+          let aiResponseText;
+          
+          if (isImage) {
+            aiResponseText = await geminiService.analyzeImage(file, `Please analyze this image and provide detailed insights. Describe what you see and suggest relevant information based on the current ${currentMode.name} mode.`);
+          } else if (isVideo) {
+            aiResponseText = `I can see you've uploaded a video file. I can help you with video analysis, content creation suggestions, editing recommendations, and technical guidance. What specific aspect of this video would you like me to focus on?`;
+          } else if (isAudio) {
+            aiResponseText = `I can help you with this audio file in several ways. I can provide transcription services, translate content to different languages, analyze voice quality, suggest audio editing improvements, extract key information, and offer technical guidance for audio processing. What would you like me to focus on with this audio file?`;
+          } else if (isDocument) {
+            aiResponseText = `I can help you work with this document in various ways. I can provide document summarization, content analysis and insights, text extraction and formatting, translation services, identify key points, and offer professional review and suggestions. What specific assistance do you need with this document?`;
+          } else {
+            aiResponseText = `I've received your file and I'm ready to assist you. I can provide guidance, suggestions, and help you work with this content. I can offer file format conversion advice, content analysis where supported, usage recommendations, technical guidance, and suggest related resources and tools. How would you like me to help you with this file?`;
+          }
+          
+          // Use typing simulation
+          simulateTyping(aiResponseText, (finalText) => {
+            const aiResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'ai',
+              content: finalText,
+              timestamp: new Date(),
+              mode: currentMode.id
+            };
+            setMessages(prev => [...prev, aiResponse]);
+          });
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'ai',
+            content: "I'm experiencing technical difficulties analyzing this file. Please try again in a moment, or let me know if you need assistance with a different approach to working with your content.",
+            timestamp: new Date(),
+            mode: currentMode.id
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        }
       };
 
-      const updatedMessages = [...newMessages, aiMessage];
-      setMessages(updatedMessages);
-      
-      if (conversationId) {
-        updateConversationMessages(conversationId, updatedMessages);
-      }
+      analyzeFile();
+    } else if (dailyUsage.uploads >= DAILY_LIMITS.uploads) {
+      alert(`📊 Daily upload limit reached (${DAILY_LIMITS.uploads} files). Please try again tomorrow for more uploads.`);
+    }
+    
+    // Reset file input
+    if (event.target) {
+      event.target.value = '';
+    }
+  };
 
-      // Enhanced voice response generation
+  const handleVoiceMessage = (transcript: string) => {
+    if (transcript.trim()) {
+      const voiceMessage: Message = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: transcript,
+        timestamp: new Date(),
+        mode: currentMode.id
+      };
+      setMessages(prev => [...prev, voiceMessage]);
+
+
+      // Generate AI response to voice message
       const generateVoiceResponse = async () => {
         try {
-          if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(response);
-            utterance.rate = 0.9;
-            utterance.pitch = 1;
-            utterance.volume = 0.8;
-            
-            const voices = speechSynthesis.getVoices();
-            const preferredVoice = voices.find(voice => 
-              voice.name.includes('Google') || 
-              voice.name.includes('Microsoft') ||
-              voice.lang.startsWith('en')
-            );
-            
-            if (preferredVoice) {
-              utterance.voice = preferredVoice;
-            }
-            
-            speechSynthesis.speak(utterance);
+          const conversationHistory = getConversationHistory();
+          const aiResponseText = await geminiService.generateResponse(transcript, conversationHistory);
+          
+          // Check if we should generate images for voice queries too
+          const needsImages = shouldGenerateImages(transcript, currentMode.id);
+          let images: string[] = [];
+          
+          if (needsImages && dailyUsage.imageGenerations < DAILY_LIMITS.images) {
+            images = await generateImages(transcript);
+            setDailyUsage(prev => ({
+              ...prev,
+              imageGenerations: prev.imageGenerations + images.length
+            }));
           }
+          
+          // Use typing simulation
+          simulateTyping(aiResponseText, (finalText) => {
+            const aiResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'ai',
+              content: finalText,
+              timestamp: new Date(),
+              mode: currentMode.id,
+              images: images.length > 0 ? images : undefined
+            };
+            setMessages(prev => [...prev, aiResponse]);
+          });
         } catch (error) {
-          console.error('Voice synthesis error:', error);
           const errorResponse: Message = {
-            id: generateMessageId(),
-            text: 'Voice response is currently unavailable, but I can still help you through text.',
-            isUser: false,
-            timestamp: new Date()
+            id: (Date.now() + 1).toString(),
+            type: 'ai',
+            content: "I'm experiencing difficulties processing your voice message. Please try speaking again or type your message instead.",
+            timestamp: new Date(),
+            mode: currentMode.id
           };
           setMessages(prev => [...prev, errorResponse]);
         }
       };
 
       generateVoiceResponse();
-    } catch (error) {
-      console.error('Error generating response:', error);
-      const errorMessage: Message = {
-        id: generateMessageId(),
-        text: 'Sorry, I encountered an error while processing your voice message. Please try again.',
-        isUser: false,
-        timestamp: new Date()
-      };
-      
-      const updatedMessages = [...newMessages, errorMessage];
-      setMessages(updatedMessages);
-      
-      if (conversationId) {
-        updateConversationMessages(conversationId, updatedMessages);
-      }
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -304,7 +501,7 @@ const App: React.FC = () => {
       }, 5000);
     } catch (error) {
       console.error('Error accessing microphone:', error);
-      alert('Unable to access microphone. Please check your permissions.');
+      alert('Microphone access denied. Please allow microphone permissions and try again.');
     }
   };
 
@@ -326,206 +523,306 @@ const App: React.FC = () => {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out z-50 ${
-        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } w-64 bg-gray-800 border-r border-gray-700 flex flex-col h-full`}>
-        
-        {/* Sidebar Header */}
-        <div className="p-4 border-b border-gray-700">
+      <div className={`
+        fixed lg:relative inset-y-0 left-0 z-50 w-80 bg-gray-800 border-r border-gray-700 flex flex-col transform transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        {/* Header */}
+        <div className="p-4 lg:p-6 border-b border-gray-700">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-5 h-5" />
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="font-bold text-lg text-white">XL</span>
               </div>
-              <span className="font-semibold text-lg">Xlyger AI</span>
+              <div>
+                <div className="text-sm text-gray-400">XLYGER</div>
+                <div className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+                  XLYGER AI
+                </div>
+              </div>
             </div>
+            {/* Close button for mobile */}
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className="lg:hidden p-1 hover:bg-gray-700 rounded"
+              className="lg:hidden p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
-          
+        </div>
+
+        {/* Daily Usage Stats */}
+        <div className="p-4 lg:p-6 border-b border-gray-700">
+          <h3 className="text-gray-400 text-sm font-medium mb-2">Daily Usage</h3>
+          <div className="space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span>Images Generated:</span>
+              <span className={dailyUsage.imageGenerations >= DAILY_LIMITS.images ? 'text-red-400' : 'text-green-400'}>
+                {dailyUsage.imageGenerations}/{DAILY_LIMITS.images}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Files Uploaded:</span>
+              <span className={dailyUsage.uploads >= DAILY_LIMITS.uploads ? 'text-red-400' : 'text-green-400'}>
+                {dailyUsage.uploads}/{DAILY_LIMITS.uploads}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Mode Selection */}
+        <div className="p-4 lg:p-6">
+          <h3 className="text-gray-400 text-sm font-medium mb-4">Select Mode</h3>
+          <div className="space-y-2">
+            {AI_MODES.map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => {
+                  handleModeChange(mode);
+                  setIsSidebarOpen(false); // Close sidebar on mobile after selection
+                }}
+                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 hover:bg-gray-700 ${
+                  currentMode.id === mode.id 
+                    ? `${mode.bgColor} text-white shadow-lg transform scale-105` 
+                    : 'bg-gray-700 text-gray-300'
+                }`}
+              >
+                {mode.icon}
+                <span className="font-medium text-sm lg:text-base">{mode.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* New Chat Button */}
+        <div className="p-4 lg:p-6">
           <button
-            onClick={createNewConversation}
-            className="w-full mt-4 flex items-center space-x-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            onClick={() => {
+              handleNewChat();
+              setIsSidebarOpen(false); // Close sidebar on mobile after action
+            }}
+            className="w-full flex items-center justify-center space-x-2 p-3 bg-pink-500 hover:bg-pink-600 rounded-lg transition-colors duration-200 font-medium text-sm lg:text-base"
           >
-            <Plus className="w-4 h-4" />
-            <span>New Chat</span>
+            <Plus className="w-5 h-5" />
+            <span>NEW CHAT</span>
           </button>
         </div>
 
-        {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto p-2">
-          {conversations.map((conversation) => (
-            <button
-              key={conversation.id}
-              onClick={() => switchConversation(conversation.id)}
-              className={`w-full text-left p-3 rounded-lg mb-2 transition-colors ${
-                currentConversationId === conversation.id
-                  ? 'bg-gray-700 border border-gray-600'
-                  : 'hover:bg-gray-700'
-              }`}
+        {/* Quick Prompts */}
+        <div className="p-4 lg:p-6 mt-auto">
+          <h3 className="text-gray-400 text-sm font-medium mb-4">Quick Prompts</h3>
+          <div className="space-y-2">
+            <button 
+              onClick={() => {
+                setInputMessage("Help me get started");
+                setIsSidebarOpen(false);
+              }}
+              className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
             >
-              <div className="flex items-start space-x-2">
-                <MessageSquare className="w-4 h-4 mt-1 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{conversation.title}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {conversation.lastUpdated.toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
+              "Help me get started"
             </button>
-          ))}
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-sm font-semibold">U</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium">User</p>
-              <p className="text-xs text-gray-400">Free Plan</p>
-            </div>
+            <button 
+              onClick={() => {
+                setInputMessage("What can you do?");
+                setIsSidebarOpen(false);
+              }}
+              className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
+            >
+              "What can you do?"
+            </button>
+            <button 
+              onClick={() => {
+                setInputMessage("Show me examples");
+                setIsSidebarOpen(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
+            >
+              "Show me examples"
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-gray-800 border-b border-gray-700 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="lg:hidden p-2 hover:bg-gray-700 rounded-lg"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-              <div className="flex items-center space-x-2">
-                <Brain className="w-6 h-6 text-blue-400" />
-                <h1 className="text-xl font-semibold">Xlyger AI Assistant</h1>
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800 sticky top-0 z-30">
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-700 rounded-lg transition-colors shadow-lg"
+            title="Open Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                handleNewChat();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="p-1 text-gray-400 hover:text-pink-400 transition-colors"
+              title="Home"
+            >
+              <div className="w-6 h-6 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center">
+                <span className="font-bold text-xs text-white">XL</span>
               </div>
+            </button>
+            <div className={`w-6 h-6 ${currentMode.bgColor} rounded-full flex items-center justify-center`}>
+              {React.cloneElement(currentMode.icon as React.ReactElement, { className: "w-3 h-3" })}
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="hidden sm:flex items-center space-x-1 text-sm text-gray-400">
-                <Circle className="w-2 h-2 fill-green-400 text-green-400" />
-                <span>Online</span>
-              </div>
-            </div>
+            <span className={`font-medium text-sm ${currentMode.textColor}`}>
+              {currentMode.name}
+            </span>
           </div>
-        </header>
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="p-2 text-gray-400 hover:text-pink-400 transition-colors"
+            title="Scroll to top"
+          >
+            <div className="w-5 h-5 border-2 border-current rounded-full flex items-center justify-center">
+              <div className="w-1 h-1 bg-current rounded-full"></div>
+            </div>
+          </button>
+        </div>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Chat Messages */}
+        <div className="flex-1 overflow-y-auto p-3 lg:p-6 space-y-4 lg:space-y-6 scrollbar-thin">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
-                <Sparkles className="w-8 h-8" />
-              </div>
-              <h2 className="text-2xl font-semibold mb-2">Welcome to Xlyger AI</h2>
-              <p className="text-gray-400 mb-8 max-w-md">
-                Your intelligent assistant powered by advanced AI. Ask me anything, and I'll help you with detailed, professional responses.
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
-                <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <PenTool className="w-5 h-5 text-blue-400" />
-                    <span className="font-medium">Creative Writing</span>
-                  </div>
-                  <p className="text-sm text-gray-400">Get help with essays, stories, and creative content</p>
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center px-4">
+                <div className={`w-12 h-12 lg:w-16 lg:h-16 ${currentMode.bgColor} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                  {React.cloneElement(currentMode.icon as React.ReactElement, { className: "w-6 h-6 lg:w-8 lg:h-8" })}
                 </div>
-                
-                <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Code className="w-5 h-5 text-green-400" />
-                    <span className="font-medium">Code Assistance</span>
-                  </div>
-                  <p className="text-sm text-gray-400">Debug, explain, and write code in any language</p>
-                </div>
-                
-                <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Brain className="w-5 h-5 text-purple-400" />
-                    <span className="font-medium">Problem Solving</span>
-                  </div>
-                  <p className="text-sm text-gray-400">Analyze complex problems and find solutions</p>
-                </div>
-                
-                <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Search className="w-5 h-5 text-yellow-400" />
-                    <span className="font-medium">Research & Analysis</span>
-                  </div>
-                  <p className="text-sm text-gray-400">Get detailed explanations and research insights</p>
-                </div>
+                <h2 className="text-xl lg:text-2xl font-bold text-white mb-2">
+                  Welcome to XLYGER AI
+                </h2>
+                <p className={`text-lg ${currentMode.textColor} mb-4`}>
+                  {currentMode.name} Mode
+                </p>
+                <p className="text-gray-400 text-sm lg:text-base">How can I help you today?</p>
               </div>
             </div>
           ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-              >
+            messages.map((message) => {
+              const messageMode = AI_MODES.find(mode => mode.id === message.mode) || currentMode;
+              return (
                 <div
-                  className={`max-w-3xl p-4 rounded-lg ${
-                    message.isUser
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-800 border border-gray-700'
-                  }`}
+                  key={message.id}
+                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className="flex items-start space-x-3">
-                    {!message.isUser && (
-                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Sparkles className="w-4 h-4" />
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <div className="prose prose-invert max-w-none">
-                        <p className="whitespace-pre-wrap">{message.text}</p>
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-gray-400">
-                          {message.timestamp.toLocaleTimeString()}
-                        </span>
-                        {!message.isUser && (
+                  <div className={`flex space-x-2 lg:space-x-3 max-w-[85%] lg:max-w-3xl ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                    <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      message.type === 'user' 
+                        ? 'bg-gray-600' 
+                        : `${messageMode.bgColor}`
+                    }`}>
+                      {message.type === 'user' ? (
+                        <span className="text-xs lg:text-sm font-bold">U</span>
+                      ) : (
+                        <img 
+                          src="/xlyger-logo.svg" 
+                          alt="Xlyger AI" 
+                          className="w-4 h-4 lg:w-6 lg:h-6 rounded-full object-cover"
+                          onError={(e) => {
+                            // Fallback to text if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling!.style.display = 'inline';
+                          }}
+                        />
+                      )}
+                      <span className="text-xs lg:text-sm font-bold hidden">A</span>
+                    </div>
+                    <div className={`flex-1 ${message.type === 'user' ? 'text-right' : ''}`}>
+                      <div className={`inline-block p-3 lg:p-4 rounded-lg ${
+                        message.type === 'user'
+                          ? 'bg-gray-700 text-white'
+                          : `bg-gray-800 border border-gray-700 ${messageMode.textColor}`
+                      }`}>
+                        <div 
+                          className="leading-relaxed whitespace-pre-wrap text-sm lg:text-base"
+                          dangerouslySetInnerHTML={{ __html: formatResponseText(message.content) }}
+                        />
+                        
+                        {/* Display generated images */}
+                        {message.images && message.images.length > 0 && (
+                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {message.images.map((imageUrl, index) => (
+                              <div key={index} className="relative">
+                                <img 
+                                  src={imageUrl} 
+                                  alt={`Generated image ${index + 1}`}
+                                  className="w-full h-32 object-cover rounded-lg"
+                                  onError={(e) => {
+                                    e.currentTarget.src = `https://via.placeholder.com/300x200/374151/9CA3AF?text=Image+${index + 1}`;
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Copy button for AI messages */}
+                        {message.type === 'ai' && (
                           <button
-                            onClick={() => copyToClipboard(message.text, message.id)}
-                            className="p-1 hover:bg-gray-700 rounded transition-colors"
-                            title="Copy message"
+                            onClick={() => copyToClipboard(message.content, message.id)}
+                            className="mt-2 flex items-center space-x-1 text-xs text-gray-400 hover:text-white transition-colors"
                           >
-                            {copiedMessageId === message.id ? (
-                              <Check className="w-4 h-4 text-green-400" />
+                            {message.hasBeenCopied ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>Copied!</span>
+                              </>
                             ) : (
-                              <Copy className="w-4 h-4 text-gray-400" />
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </>
                             )}
                           </button>
                         )}
                       </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {message.timestamp.toLocaleTimeString()}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
           
-          {isLoading && (
+          {/* Typing Indicator */}
+          {isTyping && (
             <div className="flex justify-start">
-              <div className="max-w-3xl p-4 rounded-lg bg-gray-800 border border-gray-700">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="flex space-x-2 lg:space-x-3 max-w-[85%] lg:max-w-3xl">
+                <div className={`w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center flex-shrink-0 ${currentMode.bgColor}`}>
+                  <img 
+                    src="/xlyger-logo.svg" 
+                    alt="Xlyger AI" 
+                    className="w-4 h-4 lg:w-6 lg:h-6 rounded-full object-cover"
+                    onError={(e) => {
+                      // Fallback to text if image fails to load
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling!.style.display = 'inline';
+                    }}
+                  />
+                  <span className="text-xs lg:text-sm font-bold hidden">A</span>
+                </div>
+                <div className="flex-1">
+                  <div className={`inline-block p-3 lg:p-4 rounded-lg bg-gray-800 border border-gray-700 ${currentMode.textColor}`}>
+                    {typingText ? (
+                      <div className="leading-relaxed whitespace-pre-wrap text-sm lg:text-base">
+                        {typingText}
+                        <span className="animate-pulse">|</span>
+                      </div>
+                    ) : (
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -536,57 +833,137 @@ const App: React.FC = () => {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-gray-700 p-4">
-          <form onSubmit={handleSubmit} className="flex items-end space-x-2">
-            <div className="flex-1 relative">
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Message Xlyger AI..."
-                className="w-full p-3 pr-12 bg-gray-800 border border-gray-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows={1}
-                style={{ minHeight: '44px', maxHeight: '120px' }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit(e);
-                  }
-                }}
-                disabled={isLoading}
-              />
-              
-              <div className="absolute right-2 bottom-2 flex items-center space-x-1">
-                <button
-                  type="button"
-                  onClick={isRecording ? stopRecording : startRecording}
-                  className={`p-2 rounded-lg transition-colors ${
-                    isRecording 
-                      ? 'bg-red-600 hover:bg-red-700 text-white' 
-                      : 'hover:bg-gray-700 text-gray-400'
-                  }`}
-                  title={isRecording ? 'Stop recording' : 'Start voice recording'}
-                >
-                  <Mic className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+        <div className="border-t border-gray-700 p-3 lg:p-6 bg-gray-900 safe-area-inset-bottom sticky bottom-0 z-20">
+          {/* Mobile Navigation Bar */}
+          <div className="lg:hidden flex items-center justify-between mb-3 p-2 bg-gray-800 rounded-lg">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex items-center space-x-2 p-2 text-pink-400 hover:text-pink-300 transition-colors"
+              title="Open Menu"
+            >
+              <Menu className="w-4 h-4" />
+              <span className="text-xs">Menu</span>
+            </button>
             
             <button
-              type="submit"
-              disabled={!inputText.trim() || isLoading}
-              className="p-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors"
+              onClick={() => {
+                handleNewChat();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex items-center space-x-2 p-2 text-gray-400 hover:text-pink-400 transition-colors"
+              title="New Chat & Home"
             >
-              <Send className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
+              <span className="text-xs">New</span>
             </button>
-          </form>
+            
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex items-center space-x-2 p-2 text-gray-400 hover:text-pink-400 transition-colors"
+              title="Scroll to Top"
+            >
+              <div className="w-4 h-4 border border-current rounded-full flex items-center justify-center">
+                <div className="w-1 h-1 bg-current rounded-full"></div>
+              </div>
+              <span className="text-xs">Top</span>
+            </button>
+            
+            <div className="flex items-center space-x-1 text-xs text-gray-500">
+              <span>{dailyUsage.imageGenerations}/{DAILY_LIMITS.images}</span>
+              <span>•</span>
+              <span>{dailyUsage.uploads}/{DAILY_LIMITS.uploads}</span>
+            </div>
+          </div>
           
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Xlyger AI can make mistakes. Consider checking important information.
-          </p>
+          {/* Media buttons - horizontal scroll on mobile */}
+          <div className="flex items-center space-x-2 lg:space-x-4 mb-3 lg:mb-4 overflow-x-auto pb-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileUpload}
+              className="hidden"
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+            />
+            
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className={`p-2 lg:p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0 ${
+                dailyUsage.uploads >= DAILY_LIMITS.uploads 
+                  ? 'text-gray-500 cursor-not-allowed' 
+                  : 'text-pink-400 hover:text-pink-300'
+              }`}
+              title="Upload file"
+              disabled={dailyUsage.uploads >= DAILY_LIMITS.uploads}
+            >
+              <Image className="w-4 h-4 lg:w-5 lg:h-5" />
+            </button>
+            
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              className={`p-2 lg:p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0 ${
+                isRecording ? 'text-red-400 animate-pulse' : 'text-pink-400 hover:text-pink-300'
+              }`}
+              title={isRecording ? 'Stop recording' : 'Record voice'}
+            >
+              <Mic className="w-4 h-4 lg:w-5 lg:h-5" />
+            </button>
+            
+            <button
+              className="p-2 lg:p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+              title="Video call"
+            >
+              <Video className="w-4 h-4 lg:w-5 lg:h-5" />
+            </button>
+            
+            <button
+              className="p-2 lg:p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+              title="Voice note"
+            >
+              <Circle className="w-4 h-4 lg:w-5 lg:h-5" />
+            </button>
+          </div>
+
+          {/* Message input */}
+          <div className="flex items-center space-x-2 lg:space-x-4">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="Send a message..."
+                className="w-full p-3 lg:p-4 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 text-sm lg:text-base"
+              />
+              {/* Google Search Icon */}
+              <button
+                onClick={handleGoogleSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-pink-400 transition-colors"
+                title="Search on Google"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || isTyping}
+              className="p-3 lg:p-4 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors flex-shrink-0"
+            >
+              <Send className="w-4 h-4 lg:w-5 lg:h-5" />
+            </button>
+          </div>
+
+          <div className="text-center text-xs text-gray-500 mt-3 lg:mt-4">
+            <div className="hidden lg:block">
+              🔒 Professional AI Assistant • Daily Limits: Images ({dailyUsage.imageGenerations}/{DAILY_LIMITS.images}) • Uploads ({dailyUsage.uploads}/{DAILY_LIMITS.uploads})
+            </div>
+            <div className="lg:hidden">
+              🔒 XLYGER AI • Swipe up for more • Tap menu anytime
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default App;
