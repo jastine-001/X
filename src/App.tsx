@@ -370,64 +370,9 @@ function App() {
       };
       setMessages(prev => [...prev, fileMessage]);
 
-
-      // Generate AI response to file
-      const analyzeFile = async () => {
-        try {
-          let aiResponseText;
-          let userQuery = '';
-          
-          if (isImage) {
-            userQuery = 'Please analyze this image and tell me what you see';
-            aiResponseText = await geminiService.analyzeImage(file, `Analyze this image professionally and provide detailed insights based on the current ${currentMode.name} mode. Today is Tuesday, August 5th, 2025.`);
-          } else if (isVideo) {
-            userQuery = 'Please analyze this video content';
-            aiResponseText = `I can analyze your video content comprehensively. I provide video content analysis, editing recommendations, technical optimization guidance, and creative suggestions. I can help with content strategy, audience engagement tips, and production quality improvements. What specific aspect would you like me to focus on for your video project?`;
-          } else if (isAudio) {
-            userQuery = 'Please process this audio file';
-            aiResponseText = `I can process your audio content professionally. I provide transcription services, translation to multiple languages, voice quality analysis, audio enhancement suggestions, and content extraction. I can help with podcast editing, music analysis, speech improvement, and audio optimization. How would you like me to assist with your audio content?`;
-          } else if (isDocument) {
-            userQuery = 'Please analyze this document';
-            aiResponseText = `I can analyze your document comprehensively. I provide document summarization, content analysis, professional editing suggestions, formatting improvements, and translation services. I can help with research insights, key point extraction, writing enhancement, and professional review. What specific assistance do you need with your document?`;
-          } else {
-            userQuery = 'Please help me with this file';
-            aiResponseText = `I can assist you with your file professionally. I provide content analysis, format optimization recommendations, usage guidance, and technical support. I can help with file conversion advice, content extraction, professional suggestions, and workflow improvements. How would you like me to help you work with this content?`;
-          }
-          
-          // Add user query message first
-          const userQueryMessage: Message = {
-            id: (Date.now() - 1).toString(),
-            type: 'user',
-            content: userQuery,
-            timestamp: new Date(),
-            mode: currentMode.id
-          };
-          setMessages(prev => [...prev, userQueryMessage]);
-          
-          // Use typing simulation
-          simulateTyping(aiResponseText, (finalText) => {
-            const aiResponse: Message = {
-              id: (Date.now() + 1).toString(),
-              type: 'ai',
-              content: finalText,
-              timestamp: new Date(),
-              mode: currentMode.id
-            };
-            setMessages(prev => [...prev, aiResponse]);
-          });
-        } catch (error) {
-          const errorResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'ai',
-            content: "I'm experiencing technical difficulties analyzing this file. Please try again in a moment, or let me know if you need assistance with a different approach to working with your content.",
-            timestamp: new Date(),
-            mode: currentMode.id
-          };
-          setMessages(prev => [...prev, errorResponse]);
-        }
-      };
-
-      analyzeFile();
+      
+      // Store the uploaded file for later processing when user asks about it
+      // The file will be processed when user sends a message about it
     } else if (dailyUsage.uploads >= DAILY_LIMITS.uploads) {
       alert(`📊 Daily upload limit reached (${DAILY_LIMITS.uploads} files). Please try again tomorrow for more uploads.`);
     }
