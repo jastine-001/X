@@ -66,6 +66,9 @@ export class GeminiService {
       return response.text();
     } catch (error) {
       console.error('Error generating AI response:', error);
+      if (error instanceof Error && error.message.includes('The model is overloaded')) {
+        return "The AI model is currently overloaded. Please try again in a few moments.";
+      }
       return "I apologize, but I'm having trouble processing your request right now. Please try again in a moment.";
     }
   }
@@ -82,6 +85,9 @@ export class GeminiService {
       return response.text();
     } catch (error) {
       console.error('Error analyzing image:', error);
+      if (error instanceof Error && error.message.includes('The model is overloaded')) {
+        return "The AI model is currently overloaded. Please try again in a few moments.";
+      }
       return "I'm having trouble analyzing this image right now. Please try again later.";
     }
   }
