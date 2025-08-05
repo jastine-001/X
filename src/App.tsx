@@ -136,7 +136,7 @@ function App() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, typingText]);
   
   // Get conversation history for context
   const getConversationHistory = () => {
@@ -198,16 +198,25 @@ function App() {
 
   // Format AI response text (make important text bold instead of using *)
   const formatResponseText = (text: string): string => {
-    // Replace **text** with beautiful bold formatting
-    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<span class="font-bold text-pink-300">$1</span>');
-    // Replace *text* with emphasis
-    formatted = formatted.replace(/\*(.*?)\*/g, '<span class="font-medium text-purple-300">$1</span>');
-    // Replace bullet points with beautiful dots
-    formatted = formatted.replace(/^[\*\-\+]\s/gm, '• ');
-    formatted = formatted.replace(/^\d+\.\s/gm, (match, offset, string) => {
-      const num = match.match(/\d+/)[0];
-      return `<span class="font-bold text-pink-400">${num}.</span> `;
-    });
+    // Remove all markdown symbols and replace with beautiful formatting
+    let formatted = text
+      // Remove all ** and * symbols completely
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      // Remove # symbols
+      .replace(/#{1,6}\s/g, '')
+      // Replace bullet points with beautiful colored bullets
+      .replace(/^[\-\+]\s/gm, '<span class="text-pink-400">•</span> ')
+      // Replace numbered lists with beautiful colored numbers
+      .replace(/^\d+\.\s/gm, (match) => {
+        const num = match.match(/\d+/)[0];
+        return `<span class="font-bold text-pink-400">${num}.</span> `;
+      })
+      // Make first sentence of each paragraph bold and colored
+      .replace(/^([^.!?]+[.!?])/gm, '<span class="font-bold text-pink-300">$1</span>')
+      // Add emphasis to important words (capitalize words)
+      .replace(/\b([A-Z][A-Z]+)\b/g, '<span class="font-semibold text-purple-300">$1</span>');
+    
     return formatted;
   };
 
