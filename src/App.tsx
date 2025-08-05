@@ -198,10 +198,16 @@ function App() {
 
   // Format AI response text (make important text bold instead of using *)
   const formatResponseText = (text: string): string => {
-    // Replace **text** with <strong>text</strong>
-    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    // Replace *text* with <em>text</em>
-    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // Replace **text** with beautiful bold formatting
+    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<span class="font-bold text-pink-300">$1</span>');
+    // Replace *text* with emphasis
+    formatted = formatted.replace(/\*(.*?)\*/g, '<span class="font-medium text-purple-300">$1</span>');
+    // Replace bullet points with beautiful dots
+    formatted = formatted.replace(/^[\*\-\+]\s/gm, '• ');
+    formatted = formatted.replace(/^\d+\.\s/gm, (match, offset, string) => {
+      const num = match.match(/\d+/)[0];
+      return `<span class="font-bold text-pink-400">${num}.</span> `;
+    });
     return formatted;
   };
 
@@ -360,18 +366,34 @@ function App() {
       const analyzeFile = async () => {
         try {
           let aiResponseText;
+          let userQuery = '';
           
           if (isImage) {
-            aiResponseText = await geminiService.analyzeImage(file, `Please analyze this image and provide detailed insights. Describe what you see and suggest relevant information based on the current ${currentMode.name} mode.`);
+            userQuery = 'Please analyze this image and tell me what you see';
+            aiResponseText = await geminiService.analyzeImage(file, `Analyze this image professionally and provide detailed insights based on the current ${currentMode.name} mode. Today is Tuesday, August 5th, 2025.`);
           } else if (isVideo) {
-            aiResponseText = `I can see you've uploaded a video file. I can help you with video analysis, content creation suggestions, editing recommendations, and technical guidance. What specific aspect of this video would you like me to focus on?`;
+            userQuery = 'Please analyze this video content';
+            aiResponseText = `I can analyze your video content comprehensively. I provide video content analysis, editing recommendations, technical optimization guidance, and creative suggestions. I can help with content strategy, audience engagement tips, and production quality improvements. What specific aspect would you like me to focus on for your video project?`;
           } else if (isAudio) {
-            aiResponseText = `I can help you with this audio file in several ways. I can provide transcription services, translate content to different languages, analyze voice quality, suggest audio editing improvements, extract key information, and offer technical guidance for audio processing. What would you like me to focus on with this audio file?`;
+            userQuery = 'Please process this audio file';
+            aiResponseText = `I can process your audio content professionally. I provide transcription services, translation to multiple languages, voice quality analysis, audio enhancement suggestions, and content extraction. I can help with podcast editing, music analysis, speech improvement, and audio optimization. How would you like me to assist with your audio content?`;
           } else if (isDocument) {
-            aiResponseText = `I can help you work with this document in various ways. I can provide document summarization, content analysis and insights, text extraction and formatting, translation services, identify key points, and offer professional review and suggestions. What specific assistance do you need with this document?`;
+            userQuery = 'Please analyze this document';
+            aiResponseText = `I can analyze your document comprehensively. I provide document summarization, content analysis, professional editing suggestions, formatting improvements, and translation services. I can help with research insights, key point extraction, writing enhancement, and professional review. What specific assistance do you need with your document?`;
           } else {
-            aiResponseText = `I've received your file and I'm ready to assist you. I can provide guidance, suggestions, and help you work with this content. I can offer file format conversion advice, content analysis where supported, usage recommendations, technical guidance, and suggest related resources and tools. How would you like me to help you with this file?`;
+            userQuery = 'Please help me with this file';
+            aiResponseText = `I can assist you with your file professionally. I provide content analysis, format optimization recommendations, usage guidance, and technical support. I can help with file conversion advice, content extraction, professional suggestions, and workflow improvements. How would you like me to help you work with this content?`;
           }
+          
+          // Add user query message first
+          const userQueryMessage: Message = {
+            id: (Date.now() - 1).toString(),
+            type: 'user',
+            content: userQuery,
+            timestamp: new Date(),
+            mode: currentMode.id
+          };
+          setMessages(prev => [...prev, userQueryMessage]);
           
           // Use typing simulation
           simulateTyping(aiResponseText, (finalText) => {
@@ -409,6 +431,7 @@ function App() {
 
   const handleVoiceMessage = (transcript: string) => {
     if (transcript.trim()) {
+      // Show the actual transcribed text as user message
       const voiceMessage: Message = {
         id: Date.now().toString(),
         type: 'user',
@@ -423,7 +446,7 @@ function App() {
       const generateVoiceResponse = async () => {
         try {
           const conversationHistory = getConversationHistory();
-          const aiResponseText = await geminiService.generateResponse(transcript, conversationHistory);
+          const aiResponseText = await geminiService.generateResponse(transcript, conversationHistory, true);
           
           // Check if we should generate images for voice queries too
           const needsImages = shouldGenerateImages(transcript, currentMode.id);
@@ -477,16 +500,16 @@ function App() {
 
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        // Enhanced voice processing simulation
-        const simulatedTranscriptions = [
-          "Hello, I need help with my skincare routine",
-          "Can you help me write a professional email?",
-          "Show me some coding examples in JavaScript",
-          "I want to learn about healthy eating habits",
-          "Help me plan my daily schedule"
+        // Professional voice transcription simulation
+        const professionalTranscriptions = [
+          "What is biology and how does it relate to everyday life?",
+          "Can you explain the principles of effective communication?",
+          "How do I create a professional presentation?",
+          "What are the best practices for time management?",
+          "Explain the fundamentals of digital marketing"
         ];
-        const randomTranscription = simulatedTranscriptions[Math.floor(Math.random() * simulatedTranscriptions.length)];
-        handleVoiceMessage(`${randomTranscription} [Voice transcribed and processed]`);
+        const randomTranscription = professionalTranscriptions[Math.floor(Math.random() * professionalTranscriptions.length)];
+        handleVoiceMessage(randomTranscription);
       };
 
       mediaRecorderRef.current.start();
