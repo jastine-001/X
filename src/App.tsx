@@ -248,6 +248,8 @@ function App() {
     if (inputMessage.trim()) {
       const searchQuery = encodeURIComponent(inputMessage.trim());
       window.open(`https://www.google.com/search?q=${searchQuery}`, '_blank');
+      // Clear the input after search
+      setInputMessage('');
     }
   };
 
