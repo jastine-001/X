@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { geminiService } from './services/geminiService';
+import { speechService } from './services/speechService';
+import { VoiceChat } from './components/VoiceChat';
+import { ImageProcessor } from './components/ImageProcessor';
 import { 
   MessageSquare, 
   Sparkles, 
@@ -16,7 +19,8 @@ import {
   X,
   Copy,
   Check,
-  Search
+  Search,
+  Volume2
 } from 'lucide-react';
 
 interface Message {
@@ -30,6 +34,7 @@ interface Message {
   hasBeenCopied?: boolean;
   fileType?: 'image' | 'video' | 'audio' | 'document';
   fileName?: string;
+  processingResult?: any;
 }
 
 interface AIMode {
@@ -96,6 +101,9 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [voiceChatEnabled, setVoiceChatEnabled] = useState(true);
+  const [autoSpeak, setAutoSpeak] = useState(false);
+  const [currentSpeakFunction, setCurrentSpeakFunction] = useState<((text: string) => void) | null>(null);
   const [dailyUsage, setDailyUsage] = useState<DailyUsage>(() => {
     const today = new Date().toDateString();
     const saved = localStorage.getItem('xlyger-daily-usage');
@@ -111,6 +119,7 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const processingFileRef = useRef<File | null>(null);
 
   // Save daily usage to localStorage
   useEffect(() => {
@@ -372,9 +381,10 @@ function App() {
       };
       setMessages(prev => [...prev, fileMessage]);
 
-      
-      // Store the uploaded file for later processing when user asks about it
-      // The file will be processed when user sends a message about it
+      // Store file for processing
+      if (isImage) {
+        processingFileRef.current = file;
+      }
     } else if (dailyUsage.uploads >= DAILY_LIMITS.uploads) {
       alert(`📊 Daily upload limit reached (${DAILY_LIMITS.uploads} files). Please try again tomorrow for more uploads.`);
     }
@@ -385,7 +395,7 @@ function App() {
     }
   };
 
-  const handleVoiceMessage = (transcript: string) => {
+  const handleVoiceMessage = async (transcript: string) => {
     if (transcript.trim()) {
       // Show the actual transcribed text as user message
       const voiceMessage: Message = {
@@ -427,6 +437,11 @@ function App() {
               images: images.length > 0 ? images : undefined
             };
             setMessages(prev => [...prev, aiResponse]);
+            
+            // Auto-speak response if enabled
+            if (autoSpeak && currentSpeakFunction) {
+              currentSpeakFunction(finalText);
+            }
           });
         } catch (error) {
           const errorResponse: Message = {
@@ -444,50 +459,20 @@ function App() {
     }
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      const audioChunks: BlobPart[] = [];
-      
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunks.push(event.data);
-      };
-
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        // Professional voice transcription simulation
-        const professionalTranscriptions = [
-          "What is biology and how does it relate to everyday life?",
-          "Can you explain the principles of effective communication?",
-          "How do I create a professional presentation?",
-          "What are the best practices for time management?",
-          "Explain the fundamentals of digital marketing"
-        ];
-        const randomTranscription = professionalTranscriptions[Math.floor(Math.random() * professionalTranscriptions.length)];
-        handleVoiceMessage(randomTranscription);
-      };
-
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-
-      // Auto-stop after 5 seconds for better user experience
-      setTimeout(() => {
-        if (mediaRecorderRef.current && isRecording) {
-          mediaRecorderRef.current.stop();
-          setIsRecording(false);
-        }
-      }, 5000);
-    } catch (error) {
-      console.error('Error accessing microphone:', error);
-      alert('Microphone access denied. Please allow microphone permissions and try again.');
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+  // Handle image analysis completion
+  const handleImageAnalysisComplete = (analysisText: string) => {
+    const analysisMessage: Message = {
+      id: Date.now().toString(),
+      type: 'ai',
+      content: analysisText,
+      timestamp: new Date(),
+      mode: currentMode.id
+    };
+    setMessages(prev => [...prev, analysisMessage]);
+    
+    // Auto-speak analysis if enabled
+    if (autoSpeak && currentSpeakFunction) {
+      currentSpeakFunction(analysisText);
     }
   };
 
@@ -549,6 +534,31 @@ function App() {
           </div>
         </div>
 
+        {/* Voice Settings */}
+        <div className="p-4 lg:p-6 border-b border-gray-700">
+          <h3 className="text-gray-400 text-sm font-medium mb-3">Voice Features</h3>
+          <div className="space-y-3">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={voiceChatEnabled}
+                onChange={(e) => setVoiceChatEnabled(e.target.checked)}
+                className="w-4 h-4 text-pink-500 bg-gray-700 border-gray-600 rounded focus:ring-pink-500"
+              />
+              <span className="text-sm text-gray-300">Enable Voice Chat</span>
+            </label>
+            
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoSpeak}
+                onChange={(e) => setAutoSpeak(e.target.checked)}
+                className="w-4 h-4 text-purple-500 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
+              />
+              <span className="text-sm text-gray-300">Auto-speak Responses</span>
+            </label>
+          </div>
+        </div>
         {/* Mode Selection */}
         <div className="p-4 lg:p-6">
           <h3 className="text-gray-400 text-sm font-medium mb-4">Select Mode</h3>
@@ -743,22 +753,42 @@ function App() {
                         
                         {/* Copy button for AI messages */}
                         {message.type === 'ai' && (
-                          <button
-                            onClick={() => copyToClipboard(message.content, message.id)}
-                            className="mt-2 flex items-center space-x-1 text-xs text-gray-400 hover:text-white transition-colors"
-                          >
-                            {message.hasBeenCopied ? (
-                              <>
-                                <Check className="w-3 h-3" />
-                                <span>Copied!</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                <span>Copy</span>
-                              </>
+                          <div className="mt-2 flex items-center space-x-2">
+                            <button
+                              onClick={() => copyToClipboard(message.content, message.id)}
+                              className="flex items-center space-x-1 text-xs text-gray-400 hover:text-white transition-colors"
+                            >
+                              {message.hasBeenCopied ? (
+                                <>
+                                  <Check className="w-3 h-3" />
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                            
+                            {voiceChatEnabled && currentSpeakFunction && (
+                              <button
+                                onClick={() => currentSpeakFunction!(message.content)}
+                                className="flex items-center space-x-1 text-xs text-gray-400 hover:text-purple-400 transition-colors"
+                              >
+                                <Volume2 className="w-3 h-3" />
+                                <span>Speak</span>
+                              </button>
                             )}
-                          </button>
+                          </div>
+                        )}
+                        
+                        {/* Image Processing Component */}
+                        {message.type === 'user' && message.fileType === 'image' && processingFileRef.current && (
+                          <ImageProcessor 
+                            file={processingFileRef.current}
+                            onAnalysisComplete={handleImageAnalysisComplete}
+                          />
                         )}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
@@ -877,15 +907,14 @@ function App() {
               <Image className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
             
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`p-2 lg:p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0 ${
-                isRecording ? 'text-red-400 animate-pulse' : 'text-pink-400 hover:text-pink-300'
-              }`}
-              title={isRecording ? 'Stop recording' : 'Record voice'}
-            >
-              <Mic className="w-4 h-4 lg:w-5 lg:h-5" />
-            </button>
+            {/* Voice Chat Component */}
+            {voiceChatEnabled && (
+              <VoiceChat
+                onVoiceMessage={handleVoiceMessage}
+                onSpeakResponse={(speakFn) => setCurrentSpeakFunction(() => speakFn)}
+                isEnabled={voiceChatEnabled}
+              />
+            )}
             
             <button
               className="p-2 lg:p-2 text-pink-400 hover:text-pink-300 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
@@ -933,10 +962,10 @@ function App() {
 
           <div className="text-center text-xs text-gray-500 mt-3 lg:mt-4">
             <div className="hidden lg:block">
-              🔒 Professional AI Assistant • Daily Limits: Images ({dailyUsage.imageGenerations}/{DAILY_LIMITS.images}) • Uploads ({dailyUsage.uploads}/{DAILY_LIMITS.uploads})
+              🔒 Professional AI Assistant • Voice Chat {voiceChatEnabled ? 'Enabled' : 'Disabled'} • Daily Limits: Images ({dailyUsage.imageGenerations}/{DAILY_LIMITS.images}) • Uploads ({dailyUsage.uploads}/{DAILY_LIMITS.uploads})
             </div>
             <div className="lg:hidden">
-              🔒 XLYGER AI • Swipe up for more • Tap menu anytime
+              🔒 XLYGER AI • Voice {voiceChatEnabled ? 'ON' : 'OFF'} • Swipe up for more
             </div>
           </div>
         </div>
