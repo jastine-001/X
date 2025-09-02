@@ -355,6 +355,8 @@ function App() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && dailyUsage.uploads < DAILY_LIMITS.uploads) {
+      console.log('File uploaded:', file.name, file.type, file.size);
+      
       setDailyUsage(prev => ({
         ...prev,
         uploads: prev.uploads + 1
@@ -364,6 +366,7 @@ function App() {
       const isVideo = file.type.startsWith('video/');
       const isAudio = file.type.startsWith('audio/');
       const isDocument = file.type.includes('pdf') || file.type.includes('document') || file.type.includes('text');
+      console.log('File type detection:', { isImage, isVideo, isAudio, isDocument });
       
       let fileType: 'image' | 'video' | 'audio' | 'document' = 'document';
       if (isImage) fileType = 'image';
@@ -371,6 +374,8 @@ function App() {
       else if (isAudio) fileType = 'audio';
       
       const fileMessage: Message = {
+        id: Date.now().toString(),
+        type: 'user',
         id: Date.now().toString(),
         type: 'user',
         content: `📎 Uploaded ${fileType}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
@@ -382,9 +387,25 @@ function App() {
       setMessages(prev => [...prev, fileMessage]);
 
       // Store file for processing
-      if (isImage) {
-        processingFileRef.current = file;
-      }
+      processingFileRef.current = file;
+      
+      // Auto-process different file types
+      setTimeout(async () => {
+        try {
+          if (isImage) {
+            const analysis = await geminiService.analyzeImage(file, "Analyze this image in detail, describing what you see, colors, composition, and any text or objects present.");
+            handleImageAnalysisComplete(analysis);
+          } else if (isVideo) {
+            handleImageAnalysisComplete(`Video file uploaded: ${file.name}. Video analysis capabilities include frame extraction, duration analysis, and content summarization. This is a ${fileType} file of ${(file.size / 1024 / 1024).toFixed(2)} MB.`);
+          } else if (isAudio) {
+            handleImageAnalysisComplete(`Audio file uploaded: ${file.name}. Audio processing capabilities include transcription, audio analysis, and format conversion. This is a ${fileType} file of ${(file.size / 1024 / 1024).toFixed(2)} MB.`);
+          } else if (isDocument) {
+            handleImageAnalysisComplete(`Document uploaded: ${file.name}. Document processing capabilities include text extraction, content analysis, and format conversion. This is a ${fileType} file of ${(file.size / 1024 / 1024).toFixed(2)} MB.`);
+          }
+        } catch (error) {
+          console.error('File processing error:', error);
+        }
+      }, 500);
     } else if (dailyUsage.uploads >= DAILY_LIMITS.uploads) {
       alert(`📊 Daily upload limit reached (${DAILY_LIMITS.uploads} files). Please try again tomorrow for more uploads.`);
     }
@@ -534,31 +555,6 @@ function App() {
           </div>
         </div>
 
-        {/* Voice Settings */}
-        <div className="p-4 lg:p-6 border-b border-gray-700">
-          <h3 className="text-gray-400 text-sm font-medium mb-3">Voice Features</h3>
-          <div className="space-y-3">
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={voiceChatEnabled}
-                onChange={(e) => setVoiceChatEnabled(e.target.checked)}
-                className="w-4 h-4 text-pink-500 bg-gray-700 border-gray-600 rounded focus:ring-pink-500"
-              />
-              <span className="text-sm text-gray-300">Enable Voice Chat</span>
-            </label>
-            
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoSpeak}
-                onChange={(e) => setAutoSpeak(e.target.checked)}
-                className="w-4 h-4 text-purple-500 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
-              />
-              <span className="text-sm text-gray-300">Auto-speak Responses</span>
-            </label>
-          </div>
-        </div>
         {/* Mode Selection */}
         <div className="p-4 lg:p-6">
           <h3 className="text-gray-400 text-sm font-medium mb-4">Select Mode</h3>
