@@ -7,6 +7,9 @@ export class SpeechService {
 
   constructor() {
     this.synthesis = window.speechSynthesis;
+  }
+
+  initialize() {
     this.initializeSpeechRecognition();
   }
 
@@ -90,27 +93,25 @@ export class SpeechService {
     }
   }
 
-  speak(text: string, options: { rate?: number; pitch?: number; volume?: number; voice?: string } = {}) {
+  speak(text: string) {
     // Cancel any ongoing speech
     this.synthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Set voice options
-    utterance.rate = options.rate || 0.9;
-    utterance.pitch = options.pitch || 1;
-    utterance.volume = options.volume || 1;
+    // Set optimal voice settings
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    utterance.volume = 1;
 
-    // Try to use a specific voice if requested
-    if (options.voice) {
-      const voices = this.synthesis.getVoices();
-      const selectedVoice = voices.find(voice => 
-        voice.name.toLowerCase().includes(options.voice!.toLowerCase()) ||
-        voice.lang.includes(options.voice!)
-      );
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
+    // Use best available English voice
+    const voices = this.synthesis.getVoices();
+    const englishVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && voice.name.includes('Google')
+    ) || voices.find(voice => voice.lang.startsWith('en'));
+    
+    if (englishVoice) {
+      utterance.voice = englishVoice;
     }
 
     this.synthesis.speak(utterance);

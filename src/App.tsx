@@ -617,13 +617,21 @@ function App() {
             </button>
             <button 
               onClick={() => {
-                setInputMessage("Show me examples");
+                setInputMessage("How to restart hotspot services?");
                 setIsSidebarOpen(false);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
             >
-              "Show me examples"
+              "How to restart hotspot services?"
+            </button>
+            <button 
+              onClick={() => {
+                setInputMessage("Explain machine learning concepts");
+                setIsSidebarOpen(false);
+              }}
+              className="w-full text-left p-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors"
+            >
+              "Explain machine learning concepts"
             </button>
           </div>
         </div>
@@ -897,7 +905,7 @@ function App() {
                   ? 'text-gray-500 cursor-not-allowed' 
                   : 'text-pink-400 hover:text-pink-300'
               }`}
-              title="Upload file"
+              title={`Upload file (${dailyUsage.uploads}/${DAILY_LIMITS.uploads} used today)`}
               disabled={dailyUsage.uploads >= DAILY_LIMITS.uploads}
             >
               <Image className="w-4 h-4 lg:w-5 lg:h-5" />
