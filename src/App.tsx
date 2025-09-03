@@ -327,6 +327,11 @@ Recommendations:
         };
         
         audioElement.onerror = () => {
+        }
+      }
+      )
+    }
+  }
 
   async analyzeVideo(videoFile: File): Promise<string> {
     try {
@@ -457,6 +462,12 @@ Recommendations:
         };
         
         audioElement.onerror = () => {
+        }
+      }
+      )
+    }
+  }
+}
 • Suggested use: ${audioFile.type.includes('music') ? 'Entertainment and media' : 'Communication and education'}
 • Processing priority: ${duration > 600 ? 'Batch processing recommended' : 'Real-time processing available'}
 
