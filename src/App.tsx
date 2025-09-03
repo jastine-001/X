@@ -329,7 +329,7 @@ function App() {
         const errorResponse: Message = {
           id: (Date.now() + 1).toString(),
           type: 'ai',
-          content: "I apologize, but I'm experiencing some technical difficulties. Please try again in a moment.",
+          content: `**Welcome to SLIGER AI**\n\n*${mode.name} Mode*\n\nHow can I help you today?`,
           timestamp: new Date(),
           mode: currentMode.id
         };
@@ -345,7 +345,7 @@ function App() {
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       type: 'ai',
-      content: `**Welcome to XLYGER AI**\n\n*${currentMode.name} Mode*\n\nHow can I help you today?`,
+      content: `**Welcome to SLIGER AI**\n\n*${mode.name} Mode*\n\nHow can I help you today?`,
       timestamp: new Date(),
       mode: currentMode.id
     };
@@ -355,7 +355,7 @@ function App() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && dailyUsage.uploads < DAILY_LIMITS.uploads) {
-      console.log('File uploaded:', file.name, file.type, file.size);
+      console.log('Media file uploaded:', file.name, file.type, file.size);
       
       setDailyUsage(prev => ({
         ...prev,
@@ -366,7 +366,6 @@ function App() {
       const isVideo = file.type.startsWith('video/');
       const isAudio = file.type.startsWith('audio/');
       const isDocument = file.type.includes('pdf') || file.type.includes('document') || file.type.includes('text');
-      console.log('File type detection:', { isImage, isVideo, isAudio, isDocument });
       
       let fileType: 'image' | 'video' | 'audio' | 'document' = 'document';
       if (isImage) fileType = 'image';
@@ -374,8 +373,6 @@ function App() {
       else if (isAudio) fileType = 'audio';
       
       const fileMessage: Message = {
-        id: Date.now().toString(),
-        type: 'user',
         id: Date.now().toString(),
         type: 'user',
         content: `📎 Uploaded ${fileType}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
@@ -396,11 +393,14 @@ function App() {
             const analysis = await geminiService.analyzeImage(file, "Analyze this image in detail, describing what you see, colors, composition, and any text or objects present.");
             handleImageAnalysisComplete(analysis);
           } else if (isVideo) {
-            handleImageAnalysisComplete(`Video file uploaded: ${file.name}. Video analysis capabilities include frame extraction, duration analysis, and content summarization. This is a ${fileType} file of ${(file.size / 1024 / 1024).toFixed(2)} MB.`);
+            const videoAnalysis = await geminiService.analyzeVideo(file);
+            handleImageAnalysisComplete(videoAnalysis);
           } else if (isAudio) {
-            handleImageAnalysisComplete(`Audio file uploaded: ${file.name}. Audio processing capabilities include transcription, audio analysis, and format conversion. This is a ${fileType} file of ${(file.size / 1024 / 1024).toFixed(2)} MB.`);
+            const audioAnalysis = await geminiService.analyzeAudio(file);
+            handleImageAnalysisComplete(audioAnalysis);
           } else if (isDocument) {
-            handleImageAnalysisComplete(`Document uploaded: ${file.name}. Document processing capabilities include text extraction, content analysis, and format conversion. This is a ${fileType} file of ${(file.size / 1024 / 1024).toFixed(2)} MB.`);
+            const documentAnalysis = await geminiService.analyzeDocument(file);
+            handleImageAnalysisComplete(documentAnalysis);
           }
         } catch (error) {
           console.error('File processing error:', error);
@@ -522,7 +522,7 @@ function App() {
               <div>
                 <div className="text-sm text-gray-400">XLYGER</div>
                 <div className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
-                  XLYGER AI
+                  SLIGER AI
                 </div>
               </div>
             </div>
@@ -688,7 +688,7 @@ function App() {
                   {React.cloneElement(currentMode.icon as React.ReactElement, { className: "w-6 h-6 lg:w-8 lg:h-8" })}
                 </div>
                 <h2 className="text-xl lg:text-2xl font-bold text-white mb-2">
-                  Welcome to XLYGER AI
+                  Welcome to SLIGER AI
                 </h2>
                 <p className={`text-lg ${currentMode.textColor} mb-4`}>
                   {currentMode.name} Mode
@@ -716,7 +716,7 @@ function App() {
                         <img 
                           src="/xlyger-logo.svg" 
                           alt="Xlyger AI" 
-                          className="w-4 h-4 lg:w-6 lg:h-6 rounded-full object-cover"
+                          className="w-4 h-4 lg:w-6 lg:h-6 rounded-full object-cover" 
                           onError={(e) => {
                             // Fallback to text if image fails to load
                             e.currentTarget.style.display = 'none';
@@ -925,10 +925,10 @@ function App() {
 
           <div className="text-center text-xs text-gray-500 mt-3 lg:mt-4">
             <div className="hidden lg:block">
-              🔒 Professional AI Assistant • Voice Chat {voiceChatEnabled ? 'Enabled' : 'Disabled'} • Daily Limits: Images ({dailyUsage.imageGenerations}/{DAILY_LIMITS.images}) • Uploads ({dailyUsage.uploads}/{DAILY_LIMITS.uploads})
+              🔒 SLIGER AI Assistant • Voice Chat {voiceChatEnabled ? 'Enabled' : 'Disabled'} • Daily Limits: Images ({dailyUsage.imageGenerations}/{DAILY_LIMITS.images}) • Uploads ({dailyUsage.uploads}/{DAILY_LIMITS.uploads})
             </div>
             <div className="lg:hidden">
-              🔒 XLYGER AI • Voice {voiceChatEnabled ? 'ON' : 'OFF'} • Swipe up for more
+              🔒 SLIGER AI • Voice {voiceChatEnabled ? 'ON' : 'OFF'} • Media Processing Enabled
             </div>
           </div>
         </div>
