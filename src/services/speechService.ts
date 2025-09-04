@@ -325,6 +325,11 @@ Recommendations:
         };
         
         audioElement.onerror = () => {
+        }
+      }
+      )
+    }
+  }
 }
 
 export const geminiService = new GeminiService();
