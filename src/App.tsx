@@ -336,7 +336,6 @@ Recommendations:
       return `Audio Analysis: ${audioFile.name} uploaded successfully. This ${audioFile.type} file (${(audioFile.size / 1024 / 1024).toFixed(2)} MB) is ready for advanced audio processing including transcription, voice analysis, and content identification.`;
     }
   }
-  }
 
   async analyzeDocument(documentFile: File): Promise<string> {
     try {
