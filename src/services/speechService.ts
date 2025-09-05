@@ -79,7 +79,7 @@ export class SpeechService {
     // Stop any current speech
     this.stopSpeaking();
 
-    // Fix pronunciation of XLYGER AI
+    // Fix pronunciation of XLYGER AI - spell it out letter by letter
     const correctedText = text.replace(/XLYGER AI/gi, 'X-L-Y-G-E-R A-I');
 
     this.currentUtterance = new SpeechSynthesisUtterance(correctedText);

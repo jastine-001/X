@@ -68,8 +68,14 @@ function App() {
   const handleSendMessage = async (content: string, isVoiceMessage: boolean = false) => {
     if (!content.trim()) return;
 
-    // Stop any current speech when sending a message
-    speechService.stopSpeaking();
+    // Stop any current speech and listening when sending a message
+    if (speechService.getIsSpeaking()) {
+      speechService.stopSpeaking();
+    }
+    if (isListening) {
+      speechService.stopListening();
+      setIsListening(false);
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -117,12 +123,16 @@ function App() {
 
   const handleVoiceToggle = async () => {
     if (isListening) {
+      // Stop listening
       speechService.stopListening();
       setIsListening(false);
     } else {
-      try {
-        // Stop any current speech when starting to listen
+      // Stop any current speech before starting to listen
+      if (speechService.getIsSpeaking()) {
         speechService.stopSpeaking();
+      }
+      
+      try {
         setIsListening(true);
         const transcript = await speechService.startListening();
         setIsListening(false);
