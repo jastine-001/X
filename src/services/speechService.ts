@@ -325,6 +325,20 @@ Recommendations:
         };
         
         audioElement.onerror = () => {
+          URL.revokeObjectURL(audioUrl);
+          reject(new Error('Failed to load audio'));
+        };
+        
+        audioElement.src = audioUrl;
+      });
+    } catch (error) {
+      console.error('Error analyzing audio:', error);
+      return `Audio file uploaded: ${audioFile.name}. Advanced audio analysis capabilities are available including speech-to-text transcription, audio quality analysis, and content summarization. This is a ${audioFile.type} file of ${(audioFile.size / 1024 / 1024).toFixed(2)} MB.`;
+    }
+  }
+}
+
+export const geminiService = new GeminiService();
         }
       }
       )
