@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, MicOff, Image, FileText, Video, Volume2, Sparkles, User, Bot, Settings, Trash2 } from 'lucide-react';
+import { Send, Mic, MicOff, Image, FileText, Video, Volume2, Sparkles, User, Bot, Settings, Trash2, Menu, X, Home, MessageCircle, Camera, Headphones, Code, Palette, PenTool, Brain } from 'lucide-react';
 import { geminiService } from './services/geminiService';
 import { speechService } from './services/speechService';
-import { imageProcessingService } from './services/imageProcessingService';
 
 interface Message {
   id: string;
@@ -18,33 +17,52 @@ interface AIMode {
   name: string;
   description: string;
   icon: React.ReactNode;
+  color: string;
+  bgGradient: string;
 }
 
 const AI_MODES: AIMode[] = [
   {
     id: 'general',
-    name: 'General',
-    description: 'General-purpose AI assistant',
-    icon: <Bot className="w-4 h-4" />
+    name: 'General Assistant',
+    description: 'Your all-purpose AI companion for any task',
+    icon: <Brain className="w-5 h-5" />,
+    color: 'text-blue-600',
+    bgGradient: 'from-blue-500 to-indigo-600'
   },
   {
     id: 'beauty',
-    name: 'Beauty',
-    description: 'Beauty and style consultant',
-    icon: <Sparkles className="w-4 h-4" />
+    name: 'Beauty & Style',
+    description: 'Expert beauty and fashion consultant',
+    icon: <Sparkles className="w-5 h-5" />,
+    color: 'text-pink-600',
+    bgGradient: 'from-pink-500 to-rose-600'
   },
   {
     id: 'writing',
-    name: 'Writing',
-    description: 'Writing and editing assistant',
-    icon: <FileText className="w-4 h-4" />
+    name: 'Writing Assistant',
+    description: 'Professional writing and editing support',
+    icon: <PenTool className="w-5 h-5" />,
+    color: 'text-green-600',
+    bgGradient: 'from-green-500 to-emerald-600'
   },
   {
     id: 'code',
-    name: 'Code',
-    description: 'Programming and development',
-    icon: <Settings className="w-4 h-4" />
+    name: 'Code Helper',
+    description: 'Programming and development expert',
+    icon: <Code className="w-5 h-5" />,
+    color: 'text-purple-600',
+    bgGradient: 'from-purple-500 to-violet-600'
   }
+];
+
+const MENU_ITEMS = [
+  { id: 'home', name: 'Home', icon: <Home className="w-5 h-5" />, color: 'text-blue-500' },
+  { id: 'chat', name: 'Chat', icon: <MessageCircle className="w-5 h-5" />, color: 'text-green-500' },
+  { id: 'vision', name: 'Vision', icon: <Camera className="w-5 h-5" />, color: 'text-purple-500' },
+  { id: 'voice', name: 'Voice', icon: <Headphones className="w-5 h-5" />, color: 'text-orange-500' },
+  { id: 'creative', name: 'Creative', icon: <Palette className="w-5 h-5" />, color: 'text-pink-500' },
+  { id: 'settings', name: 'Settings', icon: <Settings className="w-5 h-5" />, color: 'text-gray-500' }
 ];
 
 function App() {
@@ -53,7 +71,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [currentMode, setCurrentMode] = useState('general');
-  const [showModeSelector, setShowModeSelector] = useState(false);
+  const [activeMenu, setActiveMenu] = useState('home');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +87,6 @@ function App() {
   const handleSendMessage = async (content: string, isVoiceMessage: boolean = false) => {
     if (!content.trim()) return;
 
-    // Stop any current speech and listening when sending a message
     if (speechService.getIsSpeaking()) {
       speechService.stopSpeaking();
     }
@@ -123,11 +141,9 @@ function App() {
 
   const handleVoiceToggle = async () => {
     if (isListening) {
-      // Stop listening
       speechService.stopListening();
       setIsListening(false);
     } else {
-      // Stop any current speech before starting to listen
       if (speechService.getIsSpeaking()) {
         speechService.stopSpeaking();
       }
@@ -200,7 +216,6 @@ function App() {
       setIsLoading(false);
     }
 
-    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -209,7 +224,6 @@ function App() {
   const handleModeChange = (modeId: string) => {
     setCurrentMode(modeId);
     geminiService.setMode(modeId);
-    setShowModeSelector(false);
   };
 
   const clearChat = () => {
@@ -218,228 +232,503 @@ function App() {
 
   const currentModeInfo = AI_MODES.find(mode => mode.id === currentMode);
 
-  return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 p-4 shadow-sm">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
+  const renderContent = () => {
+    switch (activeMenu) {
+      case 'home':
+        return (
+          <div className="text-center py-16">
+            <div className={`w-20 h-20 bg-gradient-to-r ${currentModeInfo?.bgGradient || 'from-blue-500 to-purple-600'} rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg`}>
+              <img 
+                src="/xlyger-logo.png" 
+                alt="Xlyger AI" 
+                className="w-12 h-12 rounded-full"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling!.classList.remove('hidden');
+                }}
+              />
+              <div className="hidden w-12 h-12 text-white font-bold text-2xl flex items-center justify-center">A</div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">XLYGER AI</h1>
-              <p className="text-sm text-gray-500">Intelligent Assistant</p>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
+              Welcome to XLYGER AI
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 font-medium">Your intelligent companion for every task</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-12">
+              {AI_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  onClick={() => {
+                    handleModeChange(mode.id);
+                    setActiveMenu('chat');
+                  }}
+                  className={`group p-6 rounded-2xl border-2 transition-all duration-300 transform hover:scale-105 ${
+                    currentMode === mode.id
+                      ? `border-transparent bg-gradient-to-r ${mode.bgGradient} text-white shadow-xl`
+                      : 'border-gray-200 hover:border-gray-300 bg-white hover:shadow-lg'
+                  }`}
+                >
+                  <div className="flex items-center space-x-4 mb-3">
+                    <div className={`p-3 rounded-xl ${currentMode === mode.id ? 'bg-white/20' : 'bg-gray-100 group-hover:bg-gray-200'} transition-colors`}>
+                      <div className={currentMode === mode.id ? 'text-white' : mode.color}>
+                        {mode.icon}
+                      </div>
+                    </div>
+                    <span className="font-bold text-lg">{mode.name}</span>
+                  </div>
+                  <p className={`text-left ${currentMode === mode.id ? 'text-white/90' : 'text-gray-600'}`}>
+                    {mode.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setActiveMenu('chat')}
+                className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+              >
+                Start Chatting
+              </button>
+              <button
+                onClick={() => setActiveMenu('vision')}
+                className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+              >
+                Try Vision AI
+              </button>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            {/* Mode Selector */}
-            <div className="relative">
-              <button
-                onClick={() => setShowModeSelector(!showModeSelector)}
-                className="flex items-center space-x-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-              >
-                {currentModeInfo?.icon}
-                <span className="text-sm font-medium">{currentModeInfo?.name}</span>
-              </button>
+        );
+
+      case 'chat':
+        return (
+          <div className="flex flex-col h-full">
+            {/* Chat Header */}
+            <div className="bg-white/90 backdrop-blur-sm border-b border-gray-200 p-4 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-10 h-10 bg-gradient-to-r ${currentModeInfo?.bgGradient} rounded-xl flex items-center justify-center shadow-md`}>
+                    <img 
+                      src="/xlyger-logo.png" 
+                      alt="AI" 
+                      className="w-6 h-6 rounded-full"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        target.nextElementSibling!.classList.remove('hidden');
+                      }}
+                    />
+                    <div className="hidden w-6 h-6 text-white font-bold text-sm flex items-center justify-center">A</div>
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-gray-800">{currentModeInfo?.name}</h2>
+                    <p className="text-sm text-gray-500">{currentModeInfo?.description}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={clearChat}
+                  className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Clear chat"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {messages.length === 0 && (
+                <div className="text-center py-12">
+                  <div className={`w-16 h-16 bg-gradient-to-r ${currentModeInfo?.bgGradient} rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg`}>
+                    {currentModeInfo?.icon}
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">Ready to help!</h3>
+                  <p className="text-gray-600">Ask me anything or upload a file to get started.</p>
+                </div>
+              )}
               
-              {showModeSelector && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                  <div className="p-2">
-                    {AI_MODES.map((mode) => (
-                      <button
-                        key={mode.id}
-                        onClick={() => handleModeChange(mode.id)}
-                        className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${
-                          currentMode === mode.id 
-                            ? 'bg-blue-50 text-blue-700' 
-                            : 'hover:bg-gray-50'
-                        }`}
-                      >
-                        {mode.icon}
-                        <div className="text-left">
-                          <div className="font-medium">{mode.name}</div>
-                          <div className="text-xs text-gray-500">{mode.description}</div>
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-3xl px-6 py-4 rounded-2xl shadow-sm ${
+                      message.isUser
+                        ? `bg-gradient-to-r ${currentModeInfo?.bgGradient} text-white`
+                        : 'bg-white text-gray-800 border border-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-start space-x-3">
+                      {!message.isUser && (
+                        <div className={`w-8 h-8 bg-gradient-to-r ${currentModeInfo?.bgGradient} rounded-full flex items-center justify-center mt-1 flex-shrink-0 shadow-md`}>
+                          <img 
+                            src="/xlyger-logo.png" 
+                            alt="AI" 
+                            className="w-5 h-5 rounded-full"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.nextElementSibling!.classList.remove('hidden');
+                            }}
+                          />
+                          <div className="hidden w-5 h-5 text-white font-bold text-xs flex items-center justify-center">A</div>
                         </div>
-                      </button>
-                    ))}
+                      )}
+                      <div className="flex-1">
+                        {message.type !== 'text' && (
+                          <div className="flex items-center space-x-2 mb-2 text-sm opacity-75">
+                            {message.type === 'image' && <Image className="w-4 h-4" />}
+                            {message.type === 'audio' && <Volume2 className="w-4 h-4" />}
+                            {message.type === 'video' && <Video className="w-4 h-4" />}
+                            {message.type === 'document' && <FileText className="w-4 h-4" />}
+                            <span>{message.fileName}</span>
+                          </div>
+                        )}
+                        <div className="whitespace-pre-wrap font-medium">{message.content}</div>
+                      </div>
+                      {message.isUser && (
+                        <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center mt-1 flex-shrink-0">
+                          <User className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className={`text-xs mt-3 ${message.isUser ? 'text-white/70' : 'text-gray-500'}`}>
+                      {message.timestamp.toLocaleTimeString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white text-gray-800 shadow-sm border border-gray-100 px-6 py-4 rounded-2xl">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 bg-gradient-to-r ${currentModeInfo?.bgGradient} rounded-full flex items-center justify-center shadow-md`}>
+                        <img 
+                          src="/xlyger-logo.png" 
+                          alt="AI" 
+                          className="w-5 h-5 rounded-full"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            target.nextElementSibling!.classList.remove('hidden');
+                          }}
+                        />
+                        <div className="hidden w-5 h-5 text-white font-bold text-xs flex items-center justify-center">A</div>
+                      </div>
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
+              <div ref={messagesEndRef} />
             </div>
-            
-            <button
-              onClick={clearChat}
-              className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-              title="Clear chat"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-4xl mx-auto space-y-4">
-          {messages.length === 0 && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Bot className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to XLYGER AI</h2>
-              <p className="text-gray-600 mb-6">Your intelligent assistant for any task</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-                {AI_MODES.map((mode) => (
-                  <button
-                    key={mode.id}
-                    onClick={() => handleModeChange(mode.id)}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      currentMode === mode.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3 mb-2">
-                      {mode.icon}
-                      <span className="font-semibold">{mode.name}</span>
-                    </div>
-                    <p className="text-sm text-gray-600 text-left">{mode.description}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-3xl px-4 py-3 rounded-2xl ${
-                  message.isUser
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-800 shadow-sm border border-gray-200'
-                }`}
-              >
-                <div className="flex items-start space-x-2">
-                  {!message.isUser && (
-                    <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mt-1 flex-shrink-0">
-                      <Bot className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    {message.type !== 'text' && (
-                      <div className="flex items-center space-x-2 mb-2 text-sm opacity-75">
-                        {message.type === 'image' && <Image className="w-4 h-4" />}
-                        {message.type === 'audio' && <Volume2 className="w-4 h-4" />}
-                        {message.type === 'video' && <Video className="w-4 h-4" />}
-                        {message.type === 'document' && <FileText className="w-4 h-4" />}
-                        <span>{message.fileName}</span>
-                      </div>
-                    )}
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                  </div>
-                  {message.isUser && (
-                    <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center mt-1 flex-shrink-0">
-                      <User className="w-3 h-3 text-white" />
-                    </div>
-                  )}
+            {/* Input Area */}
+            <div className="bg-white/90 backdrop-blur-sm border-t border-gray-200 p-4 rounded-b-2xl">
+              <div className="flex items-end space-x-3">
+                <div className="flex-1 relative">
+                  <textarea
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage(inputValue);
+                      }
+                    }}
+                    placeholder={`Ask ${currentModeInfo?.name} anything...`}
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none max-h-32 font-medium"
+                    rows={1}
+                    disabled={isLoading}
+                  />
                 </div>
-                <div className={`text-xs mt-2 ${message.isUser ? 'text-blue-100' : 'text-gray-500'}`}>
-                  {message.timestamp.toLocaleTimeString()}
-                </div>
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-3 text-gray-500 hover:text-purple-500 hover:bg-purple-50 rounded-xl transition-colors"
+                  title="Upload file"
+                  disabled={isLoading}
+                >
+                  <FileText className="w-5 h-5" />
+                </button>
+                
+                <button
+                  onClick={handleVoiceToggle}
+                  className={`p-3 rounded-xl transition-colors ${
+                    isListening
+                      ? 'bg-red-500 text-white hover:bg-red-600'
+                      : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50'
+                  }`}
+                  title={isListening ? 'Stop recording' : 'Start voice input'}
+                  disabled={isLoading}
+                >
+                  {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </button>
+                
+                <button
+                  onClick={() => handleSendMessage(inputValue)}
+                  disabled={!inputValue.trim() || isLoading}
+                  className={`p-3 bg-gradient-to-r ${currentModeInfo?.bgGradient} text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105`}
+                  title="Send message"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
               </div>
-            </div>
-          ))}
-          
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-white text-gray-800 shadow-sm border border-gray-200 px-4 py-3 rounded-2xl">
-                <div className="flex items-center space-x-2">
-                  <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                    <Bot className="w-3 h-3 text-white" />
-                  </div>
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {/* Input Area */}
-      <div className="bg-white/80 backdrop-blur-sm border-t border-gray-200 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-end space-x-3">
-            <div className="flex-1 relative">
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage(inputValue);
-                  }
-                }}
-                placeholder={`Ask ${currentModeInfo?.name} AI anything...`}
-                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none max-h-32"
-                rows={1}
-                disabled={isLoading}
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileUpload}
+                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt,.md"
+                className="hidden"
               />
             </div>
-            
-            {/* File Upload */}
+          </div>
+        );
+
+      case 'vision':
+        return (
+          <div className="text-center py-16">
+            <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Camera className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-4">Vision AI</h2>
+            <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+              Upload images for advanced AI analysis, object detection, text extraction, and visual insights.
+            </p>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-3 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
-              title="Upload file"
-              disabled={isLoading}
+              className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg transform hover:scale-105 transition-all duration-200"
             >
-              <FileText className="w-5 h-5" />
-            </button>
-            
-            {/* Voice Input */}
-            <button
-              onClick={handleVoiceToggle}
-              className={`p-3 rounded-xl transition-colors ${
-                isListening
-                  ? 'bg-red-500 text-white hover:bg-red-600'
-                  : 'text-gray-500 hover:text-blue-500 hover:bg-blue-50'
-              }`}
-              title={isListening ? 'Stop recording' : 'Start voice input'}
-              disabled={isLoading}
-            >
-              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-            </button>
-            
-            {/* Send Button */}
-            <button
-              onClick={() => handleSendMessage(inputValue)}
-              disabled={!inputValue.trim() || isLoading}
-              className="p-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Send message"
-            >
-              <Send className="w-5 h-5" />
+              Upload Image
             </button>
           </div>
-          
-          <input
-            ref={fileInputRef}
-            type="file"
-            onChange={handleFileUpload}
-            accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt,.md"
-            className="hidden"
-          />
+        );
+
+      case 'voice':
+        return (
+          <div className="text-center py-16">
+            <div className="w-20 h-20 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Headphones className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-4">Voice Assistant</h2>
+            <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+              Interact with AI using natural speech. Perfect for hands-free conversations and accessibility.
+            </p>
+            <button
+              onClick={handleVoiceToggle}
+              className={`px-8 py-3 font-semibold rounded-xl hover:shadow-lg transform hover:scale-105 transition-all duration-200 ${
+                isListening
+                  ? 'bg-gradient-to-r from-red-500 to-red-600 text-white'
+                  : 'bg-gradient-to-r from-orange-500 to-red-600 text-white'
+              }`}
+            >
+              {isListening ? 'Stop Listening' : 'Start Voice Chat'}
+            </button>
+          </div>
+        );
+
+      case 'creative':
+        return (
+          <div className="text-center py-16">
+            <div className="w-20 h-20 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Palette className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-4">Creative Studio</h2>
+            <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+              Unleash your creativity with AI-powered writing, brainstorming, and artistic inspiration.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+              <button
+                onClick={() => {
+                  handleModeChange('writing');
+                  setActiveMenu('chat');
+                }}
+                className="p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+              >
+                <PenTool className="w-8 h-8 text-green-500 mx-auto mb-3" />
+                <h3 className="font-bold text-gray-800 mb-2">Writing</h3>
+                <p className="text-sm text-gray-600">Stories, articles, and creative content</p>
+              </button>
+              <button
+                onClick={() => {
+                  handleModeChange('beauty');
+                  setActiveMenu('chat');
+                }}
+                className="p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+              >
+                <Sparkles className="w-8 h-8 text-pink-500 mx-auto mb-3" />
+                <h3 className="font-bold text-gray-800 mb-2">Beauty</h3>
+                <p className="text-sm text-gray-600">Style advice and beauty tips</p>
+              </button>
+              <button
+                onClick={() => {
+                  handleModeChange('code');
+                  setActiveMenu('chat');
+                }}
+                className="p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+              >
+                <Code className="w-8 h-8 text-purple-500 mx-auto mb-3" />
+                <h3 className="font-bold text-gray-800 mb-2">Code</h3>
+                <p className="text-sm text-gray-600">Programming and development</p>
+              </button>
+            </div>
+          </div>
+        );
+
+      case 'settings':
+        return (
+          <div className="text-center py-16">
+            <div className="w-20 h-20 bg-gradient-to-r from-gray-500 to-gray-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Settings className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-4">Settings</h2>
+            <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+              Customize your XLYGER AI experience with personalized preferences and options.
+            </p>
+            <div className="max-w-md mx-auto space-y-4">
+              <div className="p-4 bg-white rounded-xl border border-gray-200">
+                <h3 className="font-bold text-gray-800 mb-2">Current Mode</h3>
+                <p className="text-sm text-gray-600">{currentModeInfo?.name}</p>
+              </div>
+              <div className="p-4 bg-white rounded-xl border border-gray-200">
+                <h3 className="font-bold text-gray-800 mb-2">Voice Features</h3>
+                <p className="text-sm text-gray-600">
+                  {speechService.isSupported() ? 'Enabled' : 'Not supported'}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+      {/* Sidebar */}
+      <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-64 bg-white/95 backdrop-blur-sm shadow-xl transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+              <img 
+                src="/xlyger-logo.png" 
+                alt="Xlyger AI" 
+                className="w-6 h-6 rounded-full"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling!.classList.remove('hidden');
+                }}
+              />
+              <div className="hidden w-6 h-6 text-white font-bold text-sm flex items-center justify-center">X</div>
+            </div>
+            <div>
+              <h1 className="font-bold text-gray-800 text-lg">XLYGER</h1>
+              <p className="text-xs text-gray-500">AI Assistant</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="lg:hidden p-2 text-gray-500 hover:text-gray-700 rounded-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <nav className="p-4 space-y-2">
+          {MENU_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                setActiveMenu(item.id);
+                setIsSidebarOpen(false);
+              }}
+              className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${
+                activeMenu === item.id
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <div className={activeMenu === item.id ? 'text-white' : item.color}>
+                {item.icon}
+              </div>
+              <span className="font-medium">{item.name}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="absolute bottom-4 left-4 right-4">
+          <div className="p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl text-white">
+            <h3 className="font-bold mb-1">Pro Features</h3>
+            <p className="text-xs text-white/80 mb-3">Unlock advanced AI capabilities</p>
+            <button className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors">
+              Upgrade Now
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Top Bar */}
+        <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2 text-gray-500 hover:text-gray-700 rounded-lg"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            
+            <div className="flex items-center space-x-4">
+              <div className="hidden md:block">
+                <h2 className="text-xl font-bold text-gray-800 capitalize">{activeMenu}</h2>
+                <p className="text-sm text-gray-500">
+                  {activeMenu === 'home' && 'Welcome to your AI assistant'}
+                  {activeMenu === 'chat' && `Chatting with ${currentModeInfo?.name}`}
+                  {activeMenu === 'vision' && 'AI-powered image analysis'}
+                  {activeMenu === 'voice' && 'Voice-enabled conversations'}
+                  {activeMenu === 'creative' && 'Creative AI tools and inspiration'}
+                  {activeMenu === 'settings' && 'Customize your experience'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4 text-white" />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Content Area */}
+        <main className="flex-1 overflow-hidden">
+          <div className="h-full p-6">
+            <div className="h-full bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50">
+              {renderContent()}
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* Overlay for mobile sidebar */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
     </div>
   );
 }
