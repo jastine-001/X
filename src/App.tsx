@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, MicOff, Image, FileText, Video, Volume2, Sparkles, User, Bot, Settings, Trash2, Menu, X, Home, MessageCircle, Camera, Headphones, Code, Palette, PenTool, Brain } from 'lucide-react';
+import { Send, Mic, MicOff, Image, FileText, Video, Volume2, Sparkles, User, Bot, Settings, Trash2, Menu, X, Home, MessageCircle, Camera, Headphones, Code, Palette, PenTool, Brain, Copy, Check } from 'lucide-react';
 import { geminiService } from './services/geminiService';
 import { speechService } from './services/speechService';
 
@@ -73,6 +73,8 @@ function App() {
   const [currentMode, setCurrentMode] = useState('general');
   const [activeMenu, setActiveMenu] = useState('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -228,6 +230,32 @@ function App() {
 
   const clearChat = () => {
     setMessages([]);
+  };
+
+  const handleCopyMessage = async (messageId: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy message:', error);
+    }
+  };
+
+  const handleSpeakMessage = (messageId: string, content: string) => {
+    if (speakingMessageId === messageId) {
+      speechService.stopSpeaking();
+      setSpeakingMessageId(null);
+    } else {
+      if (speechService.getIsSpeaking()) {
+        speechService.stopSpeaking();
+      }
+      setSpeakingMessageId(messageId);
+      speechService.speak(content);
+
+      const estimatedDuration = (content.length / 10) * 1000;
+      setTimeout(() => setSpeakingMessageId(null), estimatedDuration);
+    }
   };
 
   const currentModeInfo = AI_MODES.find(mode => mode.id === currentMode);
@@ -392,8 +420,36 @@ function App() {
                         </div>
                       )}
                     </div>
-                    <div className={`text-xs mt-3 ${message.isUser ? 'text-white/70' : 'text-gray-500'}`}>
-                      {message.timestamp.toLocaleTimeString()}
+                    <div className={`flex items-center justify-between mt-3 ${message.isUser ? 'text-white/70' : 'text-gray-500'}`}>
+                      <div className="text-xs">
+                        {message.timestamp.toLocaleTimeString()}
+                      </div>
+                      {!message.isUser && (
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleCopyMessage(message.id, message.content)}
+                            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation group"
+                            title="Copy message"
+                          >
+                            {copiedMessageId === message.id ? (
+                              <Check className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Copy className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleSpeakMessage(message.id, message.content)}
+                            className={`p-1.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation group ${
+                              speakingMessageId === message.id ? 'bg-blue-50' : ''
+                            }`}
+                            title={speakingMessageId === message.id ? 'Stop speaking' : 'Speak message'}
+                          >
+                            <Volume2 className={`w-4 h-4 ${
+                              speakingMessageId === message.id ? 'text-blue-500 animate-pulse' : 'text-gray-400 group-hover:text-gray-600'
+                            }`} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
