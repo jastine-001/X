@@ -27,8 +27,8 @@ const AI_MODES: AIMode[] = [
     name: 'General Assistant',
     description: 'Your all-purpose AI companion for any task',
     icon: <Brain className="w-5 h-5" />,
-    color: 'text-blue-600',
-    bgGradient: 'from-blue-500 to-indigo-600'
+    color: 'text-pink-600',
+    bgGradient: 'from-pink-500 to-rose-600'
   },
   {
     id: 'beauty',
@@ -75,6 +75,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<'en-US' | 'sw-KE'>('en-US');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +152,7 @@ function App() {
       }
 
       try {
+        speechService.setLanguage(currentLanguage);
         setIsListening(true);
         const transcript = await speechService.startListening();
         setIsListening(false);
@@ -162,6 +164,12 @@ function App() {
         setIsListening(false);
       }
     }
+  };
+
+  const toggleLanguage = () => {
+    const newLanguage = currentLanguage === 'en-US' ? 'sw-KE' : 'en-US';
+    setCurrentLanguage(newLanguage);
+    speechService.setLanguage(newLanguage);
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,7 +286,7 @@ function App() {
               />
               <div className="hidden w-10 h-10 sm:w-12 sm:h-12 text-white font-bold text-xl sm:text-2xl flex items-center justify-center">A</div>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-3 sm:mb-4">
+            <h1 className="text-2xl sm:text-4xl font-bold bg-gradient-to-r from-pink-600 via-rose-600 to-pink-600 bg-clip-text text-transparent mb-3 sm:mb-4">
               Welcome to XLYGER AI
             </h1>
             <p className="text-lg sm:text-xl text-gray-600 mb-6 sm:mb-8 font-medium">Your intelligent companion for every task</p>
@@ -315,13 +323,13 @@ function App() {
             <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
               <button
                 onClick={() => setActiveMenu('chat')}
-                className="px-6 sm:px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg active:scale-95 sm:hover:scale-105 transition-all duration-200 touch-manipulation"
+                className="px-6 sm:px-8 py-3 bg-gradient-to-r from-pink-500 to-rose-600 text-white font-semibold rounded-xl hover:shadow-lg active:scale-95 sm:hover:scale-105 transition-all duration-200 touch-manipulation"
               >
                 Start Chatting
               </button>
               <button
                 onClick={() => setActiveMenu('vision')}
-                className="px-6 sm:px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg active:scale-95 sm:hover:scale-105 transition-all duration-200 touch-manipulation"
+                className="px-6 sm:px-8 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg active:scale-95 sm:hover:scale-105 transition-all duration-200 touch-manipulation"
               >
                 Try Vision AI
               </button>
@@ -485,6 +493,15 @@ function App() {
             </div>
 
             <div className="bg-white/90 backdrop-blur-sm border-t border-gray-200 p-3 sm:p-4 rounded-b-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <button
+                  onClick={toggleLanguage}
+                  className="text-xs sm:text-sm px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors touch-manipulation font-medium"
+                  title="Switch language"
+                >
+                  {currentLanguage === 'en-US' ? '🇺🇸 English' : '🇰🇪 Swahili'}
+                </button>
+              </div>
               <div className="flex items-end space-x-2 sm:space-x-3">
                 <div className="flex-1 relative">
                   <textarea
@@ -497,7 +514,7 @@ function App() {
                       }
                     }}
                     placeholder={`Ask ${currentModeInfo?.name} anything...`}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 border border-gray-300 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none max-h-32 font-medium text-sm sm:text-base touch-manipulation"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 border border-gray-300 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none max-h-32 font-medium text-sm sm:text-base touch-manipulation"
                     rows={1}
                     disabled={isLoading}
                   />
@@ -505,7 +522,7 @@ function App() {
 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2 sm:p-3 text-gray-500 hover:text-purple-500 hover:bg-purple-50 rounded-lg sm:rounded-xl transition-colors touch-manipulation"
+                  className="p-2 sm:p-3 text-gray-500 hover:text-pink-500 hover:bg-pink-50 rounded-lg sm:rounded-xl transition-colors touch-manipulation"
                   title="Upload file"
                   disabled={isLoading}
                 >
@@ -517,9 +534,9 @@ function App() {
                   className={`p-2 sm:p-3 rounded-lg sm:rounded-xl transition-colors touch-manipulation ${
                     isListening
                       ? 'bg-red-500 text-white hover:bg-red-600'
-                      : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50'
+                      : 'text-gray-500 hover:text-pink-500 hover:bg-pink-50'
                   }`}
-                  title={isListening ? 'Stop recording' : 'Start voice input'}
+                  title={isListening ? 'Stop recording' : `Start voice input (${currentLanguage === 'en-US' ? 'English' : 'Swahili'})`}
                   disabled={isLoading}
                 >
                   {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -671,7 +688,7 @@ function App() {
       <div className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-64 sm:w-72 bg-white/95 backdrop-blur-sm shadow-xl transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+            <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-rose-600 rounded-xl flex items-center justify-center shadow-md">
               <img
                 src="/xlyger-logo.png"
                 alt="Xlyger AI"
@@ -707,7 +724,7 @@ function App() {
               }}
               className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 touch-manipulation ${
                 activeMenu === item.id
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                  ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
@@ -720,7 +737,7 @@ function App() {
         </nav>
 
         <div className="absolute bottom-4 left-4 right-4 hidden lg:block">
-          <div className="p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl text-white">
+          <div className="p-4 bg-gradient-to-r from-pink-500 to-rose-600 rounded-xl text-white">
             <h3 className="font-bold mb-1">Pro Features</h3>
             <p className="text-xs text-white/80 mb-3">Unlock advanced AI capabilities</p>
             <button className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors">
@@ -755,7 +772,7 @@ function App() {
             </div>
 
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-pink-500 to-rose-600 rounded-full flex items-center justify-center">
                 <User className="w-4 h-4 text-white" />
               </div>
             </div>

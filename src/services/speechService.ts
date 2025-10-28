@@ -4,6 +4,7 @@ export class SpeechService {
   private isListening: boolean = false;
   private isSpeaking: boolean = false;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
+  private currentLanguage: string = 'en-US';
 
   constructor() {
     this.synthesis = window.speechSynthesis;
@@ -20,7 +21,7 @@ export class SpeechService {
     if (this.recognition) {
       this.recognition.continuous = false;
       this.recognition.interimResults = false;
-      this.recognition.lang = 'en-US';
+      this.recognition.lang = this.currentLanguage;
     }
   }
 
@@ -75,17 +76,25 @@ export class SpeechService {
     }
   }
 
+  setLanguage(language: 'en-US' | 'sw-KE') {
+    this.currentLanguage = language;
+    if (this.recognition) {
+      this.recognition.lang = language;
+    }
+  }
+
   speak(text: string) {
     // Stop any current speech
     this.stopSpeaking();
 
-    // Fix pronunciation of XLYGER AI - spell it out letter by letter
-    const correctedText = text.replace(/XLYGER AI/gi, 'X-L-Y-G-E-R A-I');
+    // Fix pronunciation of XLYGER AI - pronounce as "SLIGER AI"
+    const correctedText = text.replace(/XLYGER AI/gi, 'SLIGER AI');
 
     this.currentUtterance = new SpeechSynthesisUtterance(correctedText);
     this.currentUtterance.rate = 0.9;
     this.currentUtterance.pitch = 1;
     this.currentUtterance.volume = 1;
+    this.currentUtterance.lang = this.currentLanguage;
 
     this.currentUtterance.onstart = () => {
       this.isSpeaking = true;

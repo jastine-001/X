@@ -71,30 +71,30 @@ ${processingResult.enhancementSuggestions.map(s => `• ${s}`).join('\n')}
   };
 
   return (
-    <div className="bg-gray-800 border border-gray-600 rounded-lg p-4 mt-4">
+    <div className="bg-white border border-pink-200 rounded-lg p-4 mt-4 shadow-sm">
       <div className="flex items-center space-x-2 mb-4">
-        <Image className="w-5 h-5 text-pink-400" />
-        <h3 className="text-white font-medium">Image Processing</h3>
+        <Image className="w-5 h-5 text-pink-500" />
+        <h3 className="text-gray-800 font-medium">Image Processing</h3>
       </div>
 
       {/* Image Preview */}
       <div className="mb-4">
-        <img 
-          src={URL.createObjectURL(file)} 
-          alt="Uploaded image" 
-          className="w-full max-w-sm h-32 object-cover rounded-lg"
+        <img
+          src={URL.createObjectURL(file)}
+          alt="Uploaded image"
+          className="w-full max-w-sm h-32 object-cover rounded-lg border border-gray-200"
         />
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-gray-500 mt-1">
           {file.name} • {(file.size / 1024 / 1024).toFixed(2)} MB
         </p>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex space-x-1 mb-4 bg-gray-700 rounded-lg p-1">
+      <div className="flex space-x-1 mb-4 bg-gray-100 rounded-lg p-1">
         <button
           onClick={() => setActiveTab('analysis')}
           className={`flex-1 flex items-center justify-center space-x-1 p-2 rounded text-xs transition-colors ${
-            activeTab === 'analysis' ? 'bg-pink-500 text-white' : 'text-gray-400 hover:text-white'
+            activeTab === 'analysis' ? 'bg-pink-500 text-white' : 'text-gray-600 hover:text-gray-800'
           }`}
         >
           <Eye className="w-3 h-3" />
@@ -103,7 +103,7 @@ ${processingResult.enhancementSuggestions.map(s => `• ${s}`).join('\n')}
         <button
           onClick={() => setActiveTab('enhancement')}
           className={`flex-1 flex items-center justify-center space-x-1 p-2 rounded text-xs transition-colors ${
-            activeTab === 'enhancement' ? 'bg-purple-500 text-white' : 'text-gray-400 hover:text-white'
+            activeTab === 'enhancement' ? 'bg-pink-500 text-white' : 'text-gray-600 hover:text-gray-800'
           }`}
         >
           <Zap className="w-3 h-3" />
@@ -112,7 +112,7 @@ ${processingResult.enhancementSuggestions.map(s => `• ${s}`).join('\n')}
         <button
           onClick={() => setActiveTab('text')}
           className={`flex-1 flex items-center justify-center space-x-1 p-2 rounded text-xs transition-colors ${
-            activeTab === 'text' ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-white'
+            activeTab === 'text' ? 'bg-pink-500 text-white' : 'text-gray-600 hover:text-gray-800'
           }`}
         >
           <Type className="w-3 h-3" />
@@ -133,7 +133,7 @@ ${processingResult.enhancementSuggestions.map(s => `• ${s}`).join('\n')}
             </button>
             
             {result && (
-              <div className="text-xs text-gray-300 space-y-1">
+              <div className="text-xs text-gray-600 space-y-1 bg-pink-50 p-3 rounded-lg">
                 <p><strong>Objects:</strong> {result.analysis.objects.join(', ')}</p>
                 <p><strong>Colors:</strong> {result.analysis.colors.join(', ')}</p>
                 <p><strong>Mood:</strong> {result.analysis.mood}</p>
@@ -147,28 +147,28 @@ ${processingResult.enhancementSuggestions.map(s => `• ${s}`).join('\n')}
             <button
               onClick={() => enhanceImage('brightness')}
               disabled={isProcessing}
-              className="p-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded text-xs transition-colors"
+              className="p-2 bg-pink-500 hover:bg-pink-600 disabled:bg-gray-400 text-white rounded text-xs transition-colors"
             >
               Brighten
             </button>
             <button
               onClick={() => enhanceImage('contrast')}
               disabled={isProcessing}
-              className="p-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded text-xs transition-colors"
+              className="p-2 bg-pink-500 hover:bg-pink-600 disabled:bg-gray-400 text-white rounded text-xs transition-colors"
             >
               Contrast
             </button>
             <button
               onClick={() => enhanceImage('saturation')}
               disabled={isProcessing}
-              className="p-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded text-xs transition-colors"
+              className="p-2 bg-pink-500 hover:bg-pink-600 disabled:bg-gray-400 text-white rounded text-xs transition-colors"
             >
               Saturate
             </button>
             <button
               onClick={() => enhanceImage('sharpen')}
               disabled={isProcessing}
-              className="p-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white rounded text-xs transition-colors"
+              className="p-2 bg-pink-500 hover:bg-pink-600 disabled:bg-gray-400 text-white rounded text-xs transition-colors"
             >
               Sharpen
             </button>
@@ -179,7 +179,7 @@ ${processingResult.enhancementSuggestions.map(s => `• ${s}`).join('\n')}
           <button
             onClick={extractText}
             disabled={isProcessing}
-            className="w-full p-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded text-sm transition-colors"
+            className="w-full p-2 bg-pink-500 hover:bg-pink-600 disabled:bg-gray-400 text-white rounded text-sm transition-colors"
           >
             {isProcessing ? 'Extracting...' : 'Extract Text (OCR)'}
           </button>
@@ -188,8 +188,8 @@ ${processingResult.enhancementSuggestions.map(s => `• ${s}`).join('\n')}
 
       {/* Processing Indicator */}
       {isProcessing && (
-        <div className="flex items-center justify-center space-x-2 mt-3 text-xs text-gray-400">
-          <div className="w-3 h-3 border-2 border-pink-400 border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex items-center justify-center space-x-2 mt-3 text-xs text-gray-600">
+          <div className="w-3 h-3 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
           <span>Processing image...</span>
         </div>
       )}
