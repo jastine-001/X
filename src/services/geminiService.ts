@@ -284,15 +284,15 @@ Recommendations:
   async analyzeAudio(audioFile: File): Promise<string> {
     try {
       console.log('Starting audio analysis for:', audioFile.name, audioFile.type);
-
+      
       // Get audio metadata
       const audioElement = document.createElement('audio');
       const audioUrl = URL.createObjectURL(audioFile);
-
+      
       return new Promise((resolve, reject) => {
         audioElement.onloadedmetadata = () => {
           const duration = audioElement.duration;
-
+          
           const audioAnalysis = `
 Audio Analysis Complete:
 
@@ -319,90 +319,21 @@ Recommendations:
 • Audio enhancement options available
 • Compatible with voice processing workflows
           `;
-
+          
           URL.revokeObjectURL(audioUrl);
           resolve(audioAnalysis);
         };
-
+        
         audioElement.onerror = () => {
           URL.revokeObjectURL(audioUrl);
           reject(new Error('Failed to load audio'));
         };
-
+        
         audioElement.src = audioUrl;
       });
     } catch (error) {
       console.error('Error analyzing audio:', error);
       return `Audio file uploaded: ${audioFile.name}. Advanced audio analysis capabilities are available including transcription, quality analysis, and content processing. This is a ${audioFile.type} file of ${(audioFile.size / 1024 / 1024).toFixed(2)} MB.`;
-    }
-  }
-
-  async analyzeDocument(documentFile: File): Promise<string> {
-    try {
-      console.log('Starting document analysis for:', documentFile.name, documentFile.type);
-
-      const documentAnalysis = `
-Document Analysis Complete:
-
-File: ${documentFile.name}
-Size: ${(documentFile.size / 1024 / 1024).toFixed(2)} MB
-Format: ${documentFile.type}
-
-Document Processing Capabilities:
-• Text extraction and analysis
-• Content summarization
-• Key information extraction
-• Format conversion support
-• Structure analysis
-
-Analysis Results:
-• Document type: ${documentFile.type.includes('pdf') ? 'PDF Document' : documentFile.type.includes('doc') ? 'Word Document' : 'Text Document'}
-• File size suggests ${documentFile.size > 5 * 1024 * 1024 ? 'large document with extensive content' : documentFile.size > 1 * 1024 * 1024 ? 'medium-sized document' : 'compact document'}
-• Suitable for content analysis and summarization
-
-Recommendations:
-• Can be processed for text extraction
-• Content summarization available
-• Compatible with document analysis workflows
-      `;
-
-      return documentAnalysis;
-    } catch (error) {
-      console.error('Error analyzing document:', error);
-      return `Document file uploaded: ${documentFile.name}. Advanced document analysis capabilities are available including text extraction, summarization, and content processing. This is a ${documentFile.type} file of ${(documentFile.size / 1024 / 1024).toFixed(2)} MB.`;
-    }
-  }
-
-  async generateImage(prompt: string): Promise<string> {
-    try {
-      console.log('Generating image for prompt:', prompt);
-
-      const imagePrompt = `Based on this description, provide detailed guidance for creating this image: "${prompt}". Include:
-
-1. Visual Composition:
-   - Main subject and positioning
-   - Background elements and setting
-   - Color palette and mood
-   - Lighting and atmosphere
-
-2. Technical Details:
-   - Recommended style (realistic, artistic, abstract, etc.)
-   - Aspect ratio and composition rules
-   - Key visual elements to emphasize
-
-3. Creative Suggestions:
-   - Alternative interpretations
-   - Enhancement ideas
-   - Mood and emotion conveyance
-
-Note: I can provide detailed descriptions and guidance for image creation. For actual image generation, you would need to use specialized image generation tools like DALL-E, Midjourney, or Stable Diffusion with this guidance.`;
-
-      const result = await this.model.generateContent(imagePrompt);
-      const response = await result.response;
-      return response.text();
-    } catch (error) {
-      console.error('Error generating image guidance:', error);
-      return "I can provide guidance for image creation. Please describe what image you'd like to create, and I'll give you detailed instructions and suggestions for generating it with specialized tools.";
     }
   }
 }
