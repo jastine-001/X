@@ -1,13 +1,15 @@
+/* Import Google Fonts for attractive typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Import Google Fonts for attractive typography */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&display=swap');
-
 /* Set default font family */
 body {
   font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
+  background-color: #0f172a;
+  color: #e2e8f0;
 }
 
 /* Smooth scrolling for the entire app */
@@ -116,8 +118,57 @@ html {
   .safe-area-inset-bottom {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
-  
+
   .safe-area-inset-top {
     padding-top: max(0.75rem, env(safe-area-inset-top));
   }
+}
+
+/* Dark theme custom scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #1e293b;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .mobile-safe-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  }
+}
+
+/* Gradient backgrounds for dark theme */
+.dark-gradient-bg {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+/* Image generation button */
+.generate-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+  transition: all 0.3s ease;
+}
+
+.generate-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #0891b2 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
 }
